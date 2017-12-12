@@ -4,10 +4,11 @@ devtools::load_all()
 
 source("~/plotmaps/R/plotmaps.R")
 
-path = "~/eems2/test-plotting/test-data/"
+path = "~/eems2/data/overall/r2/popressard_2_Inf/output/"
 mcmcpath=path
-longlat=TRUE
+longlat=FALSE
 is.mrates=TRUE
 dimns <- read_dimns(path, longlat)
-
-plot_contour(mcmcpath, dimns, is.mrates)
+params <- list(is.mrates=is.mrates, add.pts = TRUE, add.graph = TRUE, add.countries=TRUE)
+g <- make_map(dimns, params)
+g <- add_contours(mcmcpath, dimns, g, params)

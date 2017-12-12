@@ -1,93 +1,29 @@
-read_dimns <- function(path, longlat) {
-  eems.output <- NULL
-  nxmrks = NULL
-  nymrks = NULL
-  datapath.outer <- paste0(path, '.outer')
-  mcmcpath.outer <- paste0(path, '/outer.txt')
-  if (file.exists(mcmcpath.outer)) {
-    eems.output <- TRUE
-  } else if (file.exists(datapath.outer)) {
-    eems.output <- FALSE
-  }
-  if (is.null(eems.output)) {
-    stop(paste0(path, ' is neither a datapath nor a mcmcpath.'))
-  }
-  if (eems.output) {
-    outer <- scan(mcmcpath.outer, what = numeric(), quiet = TRUE)
-  } else {
-    outer <- scan(datapath.outer, what = numeric(), quiet = TRUE)
-  }
-  outer <- matrix(outer, ncol = 2, byrow = TRUE)
-  ## "Close" the outline if the first row is not the same as the last row
-  if (sum(head(outer, 1) != tail(outer, 1))) {
-    outer <- rbind(outer, head(outer, 1))
-  }
-  if (!longlat) { outer <- outer[, c(2, 1)] }
-  xlim <- range(outer[, 1])
-  ylim <- range(outer[, 2])
-  aspect <- abs((diff(ylim) / diff(xlim)) / cos(mean(ylim) * pi / 180))
-  ## Choose the number of interpolation in each direction
-  if (is.null(nxmrks) && is.null(nymrks)) {
-    if (aspect > 1) {
-      nxmrks <- 100
-      nymrks <- round(nxmrks * aspect)
-    } else {
-      nymrks <- 100
-      nxmrks <- round(nymrks / aspect)
-    }
-  }
-  ## The interpolation points are equally spaced
-  xmrks <- seq(from = xlim[1], to = xlim[2], length = nxmrks)
-  ymrks <- seq(from = ylim[1], to = ylim[2], length = nymrks)
-  marks <- cbind(rep(xmrks, times = nymrks), rep(ymrks, each = nxmrks))
-  return(list(nxmrks = nxmrks, xmrks = xmrks, xlim = xlim, xspan = diff(xlim),
-              nymrks = nymrks, ymrks = ymrks, ylim = ylim, yspan = diff(ylim),
-              marks = marks, nmrks = c(nxmrks, nymrks), aspect = aspect,
-              outer = outer))
+#' @import mapproj
+#' @import maps
+#' @import ggplot2
+#' @import dplyr
+
+
+library(ggplot2)
+library(maps)
+library(mapproj)
+library(dplyr)
+
+
+add_graph <- function(g, color="black"){
+  xstart <- g$demes[g$edges[,1],1]
+  xend <- g$demes[g$edges[,2],1]
+  ystart <- g$demes[g$edges[,1],2]
+  yend <- g$demes[g$edges[,2],2]
+  grid <- data.frame(xstart, xend, ystart, yend)
+  geom_segment(aes(x=xstart, y=ystart, xend=xend, yend=yend), data=grid, color=color, alpha=0.3)
 }
 
-read_voronoi <- function(mcmcpath,longlat,is.mrates) {
-  if (is.mrates) {
-    rates <- scan(paste(mcmcpath,'/mcmcmrates.txt',sep=''),what=numeric(),quiet=TRUE)
-    tiles <- scan(paste(mcmcpath,'/mcmcmtiles.txt',sep=''),what=numeric(),quiet=TRUE)
-    xseed <- scan(paste(mcmcpath,'/mcmcxcoord.txt',sep=''),what=numeric(),quiet=TRUE)
-    yseed <- scan(paste(mcmcpath,'/mcmcycoord.txt',sep=''),what=numeric(),quiet=TRUE)
-  } else {
-    rates <- scan(paste(mcmcpath,'/mcmcqrates.txt',sep=''),what=numeric(),quiet=TRUE)
-    tiles <- scan(paste(mcmcpath,'/mcmcqtiles.txt',sep=''),what=numeric(),quiet=TRUE)
-    xseed <- scan(paste(mcmcpath,'/mcmcwcoord.txt',sep=''),what=numeric(),quiet=TRUE)
-    yseed <- scan(paste(mcmcpath,'/mcmczcoord.txt',sep=''),what=numeric(),quiet=TRUE)
-    rates <- 1/(2*rates) ## N = 1/2q
-  }
-  if (!longlat) {
-    tempi <- xseed
-    xseed <- yseed
-    yseed <- tempi
-  }
-  return(list(rates=rates,tiles=tiles,xseed=xseed,yseed=yseed))
-}
-
-check_files_at_path <- function(files, paths=".", strict=F){
-  # checks if ech subfolder `paths` contains all the files in `files`.
-  file_paths <- c(outer(paths, files, paste, sep=.Platform$file.sep))
-  file_exist <- file.exists(file_paths)
-  if( all(file_exist) ) return( paths )
-  
-  print(paste0(file_paths[!file_exist], " not found", collate="\n") )
-  
-  if( strict ){
-    stop( )
-  }
-  
-  f <- matrix(file_exist, nrow=length(paths))
-  return(paths[ rowSums(f) == ncol(f)])
-}
-
-average_over_mcmcpaths <- function(mcmcpath, dimns, is.mrates, longlat=F){
+average_over_mcmcpaths <- function(mcmcpath, dimns, params, longlat=F){
   niter <- 0
   mean.rate <- matrix(0,dimns$nxmrks,dimns$nymrks)
   for (path in mcmcpath) {
-    rslt <- standardize_rates(path,dimns,longlat,is.mrates)
+    rslt <- standardize_rates(path,dimns,longlat,params)
     niter <- niter + rslt$niter
     mean.rate <- mean.rate + rslt$vals
   }
@@ -95,8 +31,8 @@ average_over_mcmcpaths <- function(mcmcpath, dimns, is.mrates, longlat=F){
   return(list(mean=mean.rate))
 }
 
-standardize_rates <- function(mcmcpath,dimns,longlat,is.mrates) {
-  voronoi <- read_voronoi(mcmcpath,longlat,is.mrates)
+standardize_rates <- function(mcmcpath,dimns,longlat,params) {
+  voronoi <- read_voronoi(mcmcpath,longlat,params)
   rates <- voronoi$rates
   tiles <- voronoi$tiles
   xseed <- voronoi$xseed
@@ -118,14 +54,24 @@ standardize_rates <- function(mcmcpath,dimns,longlat,is.mrates) {
   return(list(vals=vals,niter=niter))
 }
 
-plot_contour <- function(mcmcpath,dimns,
-                                         is.mrates, ...) {
-  if (is.mrates) {
-    message('Plotting effective migration rates m : posterior mean and variance')
+#' @title adds contours
+#' @useDynLib plotmaps
+#' @param mcmcpath 
+#' @param dimns
+#' @param g a ggplot2 object
+#' @param params list of parameters
+#'
+#' @return ggplot2 object
+#' @export
+## We need to include the useDynLib somewhere in our documentation
+## see: https://stackoverflow.com/questions/36605955/c-function-not-available
+add_contours <- function(mcmcpath,dimns, g, params) {
+  if (params$is.mrates) {
+    message('Plotting migration rates m : posterior mean')
     files <- c('/mcmcmtiles.txt','/mcmcmrates.txt', 
                '/mcmcxcoord.txt','/mcmcycoord.txt')
   } else {
-    message('Plotting effective diversity rates q : posterior mean and variance')
+    message('Plotting population sizes N : posterior mean')
     files <- c('/mcmcqtiles.txt','/mcmcqrates.txt', 
                '/mcmcwcoord.txt','/mcmczcoord.txt')
   }
@@ -133,15 +79,27 @@ plot_contour <- function(mcmcpath,dimns,
   mcmcpath <- check_files_at_path(files, mcmcpath)
   n_runs <- length(mcmcpath)
   ## return an error insteadif (n_runs==0) { return(0) }
-  averages <- average_over_mcmcpaths(mcmcpath, dimns, is.mrates, T)
+  averages <- average_over_mcmcpaths(mcmcpath, dimns, params, T)
   avg <- averages[[1]]
-  return(add.contour(mcmcpath, dimns, avg,
-                                       is.mrates, ...))
+  return(add_contour(mcmcpath, dimns, avg,
+                                       g, params))
 }
 
-add.contour <- function(mcmcpath, dimns, avg, is.mrates, ...){
-  y <- rep(dimns$ymrks, each=length(dimns$xmrks))       
-  x <- rep(dimns$xmrks, length(dimns$ymrks))
+add_pts <- function(g, color="#efefefdd", const_size=T){
+  tbl <- table(g$ipmap)
+  ind <- as.numeric(names(tbl))
+  sizes <- as.vector(tbl)
+  df <- data.frame(x=g$demes[ind,1], y=g$demes[ind,2], sizes=sizes)
+  if(const_size) {
+    pts <- geom_point(aes(x=x, y=y), data=df, color=color, size=1.5)
+  } else {
+    pts <- geom_point(aes(x=x, y=y, size=sizes), data=df, color=color)
+  }
+}
+
+add_contour <- function(mcmcpath, dimns, avg, g, params){
+  x <- dimns$marks[,1]
+  y <- dimns$marks[,2]
   
   df <- data.frame(x=x, y=y, avg=c(avg))
   
@@ -151,15 +109,73 @@ add.contour <- function(mcmcpath, dimns, avg, is.mrates, ...){
   limits = c(min(c(avg, a)),
              max(c(avg, b)))
   
-  if(is.mrates){
+  if (params$is.mrates) {
     eems.colors <- scale_fill_gradientn(colours=default_eems_colors(),
                                         name="m", limits=limits, trans = "log10")
   } else {
     eems.colors <- scale_fill_gradientn(colours=default_eems_colors(),
                                         name="N", limits=limits, trans = "log10")
   }
-  contour_plot <- ggplot() + 
-    geom_tile(data=df, aes(x=y, y=x, fill=avg)) + eems.colors 
   
-  return(contour_plot)
+  g <- g + geom_tile(data=df, aes(x=x, y=y, fill=avg), alpha = 0.4) + 
+    eems.colors + coord_fixed()
+  
+  graph <- read_graph(mcmcpath, longlat)
+  
+  if (params$add.graph){
+    g <- g + add_graph(graph)
+  }
+  
+  if (params$add.pts){
+    g <- g + add_pts(graph, col = "black")
+  }
+  return(g)
 }
+
+get_boundary_map <- function(bbox){
+  xlim=bbox[c('left', 'right')]
+  ylim=bbox[c('bottom', 'top')]
+  m1 <- map(interior=F, plot=F, 
+            xlim=xlim, 
+            ylim=ylim,
+             resolution=0)
+  m1$group <- cumsum(is.na(m1$x))
+  m <- data.frame(long=m1$x, lat=m1$y,
+                  group=m1$group)
+  m <- m %>% filter(!is.na(long)) %>% filter(long > xlim[1]) %>% 
+    filter(long < xlim[2]) %>% filter(lat > ylim[1]) %>% filter(lat < ylim[2])
+  #m$long[m$long< -30] <- m$long[m$long< -30] +360   
+  #m$lat[m$lat< -38] <- -38
+  return(m)
+}
+
+#' make_map
+#' @param 
+#' @export
+#' 
+make_map <- function(dimns, params){
+  boundary <- dimns$outer
+  bbox <- c(left=min(boundary[,1]), right=max(boundary[,1]),
+            bottom=min(boundary[,2]), top=max(boundary[,2]))
+  bbox['top'] <- pmin(bbox['top'], 83)
+  
+  g <- ggplot()
+
+  g=g+theme(axis.text.x=element_text(size=12),axis.title.x=element_text(size=12))         
+  g=g+theme(axis.text.y=element_text(size=12),axis.title.y=element_text(size=12))
+  g=g + theme_classic()
+  
+  if (params$add.countries){
+    m_boundary <- get_boundary_map(bbox)
+    g = g + coord_map("mercator", parameters=NULL,  xlim=bbox[c('left', 'right')],
+                      ylim=bbox[c('bottom', 'top')]) + 
+      xlim(bbox[c('left', 'right')])+ 
+      ylim(bbox[c('bottom', 'top')])
+
+    g = g + geom_path(data=m_boundary, aes(x=long, y=lat, group=group),  color='black', size=0.5, 
+                      alpha = 1)
+  }
+  
+  return(g)
+}
+

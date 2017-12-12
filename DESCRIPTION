@@ -5,8 +5,12 @@ Version: 1.0
 Date: 2017-12-11
 Author: Hussein Al-Asadi
 Maintainer: <halasadi89@gmail.com>
-Description: plots contour plots
+Description: plots stuff
 License: GPL (>= 2)
-Imports: Rcpp (>= 0.12.14), RcppEigen (>= 0.3.3.3.1)
+Imports: Rcpp (>= 0.12.14), RcppEigen (>= 0.3.3.3.1),
+	 ggplot2,
+	 maps,
+	 mapproj,
+	 dplyr
 LinkingTo: Rcpp, RcppEigen
 RoxygenNote: 6.0.1
