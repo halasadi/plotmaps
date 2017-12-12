@@ -1,0 +1,9 @@
+*o
+*so
+RcppExports.*
+*~
+*DS_Store
+.Rbuildignore
+.Rhistory
+.Rproj.user/
+man
