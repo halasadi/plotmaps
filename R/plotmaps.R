@@ -19,20 +19,31 @@ add_graph <- function(g, color="black"){
   geom_segment(aes(x=xstart, y=ystart, xend=xend, yend=yend), data=grid, color=color, alpha=0.3)
 }
 
-average_over_mcmcpaths <- function(mcmcpath, dimns, params, longlat=F){
-  niter <- 0
+compute_summary_statistic <- function(mcmcpath, dimns, params){
+  rslts <- compute_rates_each_pixel(path,dimns,params)
   mean.rate <- matrix(0,dimns$nxmrks,dimns$nymrks)
-  for (path in mcmcpath) {
-    rslt <- standardize_rates(path,dimns,longlat,params)
-    niter <- niter + rslt$niter
-    mean.rate <- mean.rate + rslt$vals
+  niter <- length(rslts)
+  for (i in 1:niter){
+    mean.rate <- mean.rate + rslts[[i]]
   }
-  mean.rate <- mean.rate/niter
-  return(list(mean=mean.rate))
+  mean.rate <- mean.rate/length(rslts)
+  
+  med.rate <- matrix(NA,dimns$nxmrks,dimns$nymrks)
+  for (i in 1:dimns$nxmrks){
+    for (j in 1:dimns$nymrks){
+      rates <- rep(0, niter)
+      for (k in 1:niter){
+        rates[k] <- rslts[[k]][i,j]
+      }
+      med.rate[i,j] <- median(rates)
+    }
+  }
+  
+  return(list(avg=mean.rate, med = med.rate))
 }
 
-standardize_rates <- function(mcmcpath,dimns,longlat,params) {
-  voronoi <- read_voronoi(mcmcpath,longlat,params)
+compute_rates_each_pixel <- function(mcmcpath,dimns,params) {
+  voronoi <- read_voronoi(mcmcpath, params)
   rates <- voronoi$rates
   tiles <- voronoi$tiles
   xseed <- voronoi$xseed
@@ -41,6 +52,7 @@ standardize_rates <- function(mcmcpath,dimns,longlat,params) {
   niter <- length(tiles)
   count <- 0
   means  <- matrix(0, dimns$nxmrks, dimns$nymrks)
+  pixelated.tiles <- list()
   for (i in 1:niter) {
     now.tiles <- tiles[i]
     now.rates <- rates[(count+1):(count+now.tiles)]
@@ -48,10 +60,10 @@ standardize_rates <- function(mcmcpath,dimns,longlat,params) {
     now.yseed <- yseed[(count+1):(count+now.tiles)]
     now.seeds <- cbind(now.xseed,now.yseed)
     rslts <- compute_contour_vals(dimns$marks, now.rates, now.seeds)
-    vals <- vals + matrix(rslts,  nrow = dimns$nxmrks, ncol = dimns$nymrks)
+    pixelated.tiles[[i]] <- matrix(rslts,  nrow = dimns$nxmrks, ncol = dimns$nymrks)
     count <- count + now.tiles
   }
-  return(list(vals=vals,niter=niter))
+  return(pixelated.tiles)
 }
 
 #' @title adds contours
@@ -78,11 +90,18 @@ add_contours <- function(mcmcpath,dimns, g, params) {
   
   mcmcpath <- check_files_at_path(files, mcmcpath)
   n_runs <- length(mcmcpath)
-  ## return an error insteadif (n_runs==0) { return(0) }
-  averages <- average_over_mcmcpaths(mcmcpath, dimns, params, T)
-  avg <- averages[[1]]
-  return(add_contour(mcmcpath, dimns, avg,
-                                       g, params))
+  if (n_runs==0) { stop(paste0(mcmcpath, ' is not a valid mcmcpath')) }
+  if (n_runs>1)  {  stop(paste0(mcmcpath, ' the MAPS plotting package plots only run')) }
+  
+  summary_stats <- compute_summary_statistic(mcmcpath, dimns, params)
+
+  if (params$plot.median){
+    return(add_contour(mcmcpath, dimns, summary_stats$med,
+                       g, params))
+  } else{
+    return(add_contour(mcmcpath, dimns, summary_stats$avg,
+                       g, params))
+  }
 }
 
 add_pts <- function(g, color="#efefefdd", const_size=T){
@@ -97,17 +116,17 @@ add_pts <- function(g, color="#efefefdd", const_size=T){
   }
 }
 
-add_contour <- function(mcmcpath, dimns, avg, g, params){
+add_contour <- function(mcmcpath, dimns, summary_stat, g, params){
   x <- dimns$marks[,1]
   y <- dimns$marks[,2]
   
-  df <- data.frame(x=x, y=y, avg=c(avg))
+  df <- data.frame(x=x, y=y, ss=c(summary_stat))
   
-  mu = mean(log10(avg))
+  mu = mean(log10(summary_stat))
   a = 10^(mu - 1)
   b = 10^(mu + 1)
-  limits = c(min(c(avg, a)),
-             max(c(avg, b)))
+  limits = c(min(c(df$ss, a)),
+             max(c(df$ss, b)))
   
   if (params$is.mrates) {
     eems.colors <- scale_fill_gradientn(colours=default_eems_colors(),
@@ -117,7 +136,7 @@ add_contour <- function(mcmcpath, dimns, avg, g, params){
                                         name="N", limits=limits, trans = "log10")
   }
   
-  g <- g + geom_tile(data=df, aes(x=x, y=y, fill=avg), alpha = 0.4) + 
+  g <- g + geom_tile(data=df, aes(x=x, y=y, fill=ss), alpha = 1) + 
     eems.colors + coord_fixed()
   
   graph <- read_graph(mcmcpath, longlat)

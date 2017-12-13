@@ -22,7 +22,7 @@ default_eems_colors <- function( ) {
 #' @title 
 #' @param 
 #' @export
-read_voronoi <- function(mcmcpath,longlat,params) {
+read_voronoi <- function(mcmcpath,params) {
   if (params$is.mrates) {
     rates <- scan(paste(mcmcpath,'/mcmcmrates.txt',sep=''),what=numeric(),quiet=TRUE)
     tiles <- scan(paste(mcmcpath,'/mcmcmtiles.txt',sep=''),what=numeric(),quiet=TRUE)
@@ -35,7 +35,7 @@ read_voronoi <- function(mcmcpath,longlat,params) {
     yseed <- scan(paste(mcmcpath,'/mcmczcoord.txt',sep=''),what=numeric(),quiet=TRUE)
     rates <- 1/(2*rates) ## N = 1/2q
   }
-  if (!longlat) {
+  if (!params$longlat) {
     tempi <- xseed
     xseed <- yseed
     yseed <- tempi

@@ -41,4 +41,3 @@ Eigen::VectorXd compute_contour_vals(const Eigen::MatrixXd &marks,
     
     return values;
 }
-
