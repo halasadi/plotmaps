@@ -1,5 +1,7 @@
-#' @title 
-#' @param 
+#' @import sp
+
+#' @title default_eems_colors
+#' @return a vector of the default eems colors
 #' @export
 default_eems_colors <- function( ) {
   ## To reproduce the default eems colors:
@@ -13,32 +15,9 @@ default_eems_colors <- function( ) {
 }
 
 
-#' @title 
-#' @param 
-#' @export
-read_voronoi <- function(mcmcpath,params) {
-  if (params$is.mrates) {
-    rates <- scan(paste(mcmcpath,'/mcmcmrates.txt',sep=''),what=numeric(),quiet=TRUE)
-    tiles <- scan(paste(mcmcpath,'/mcmcmtiles.txt',sep=''),what=numeric(),quiet=TRUE)
-    xseed <- scan(paste(mcmcpath,'/mcmcxcoord.txt',sep=''),what=numeric(),quiet=TRUE)
-    yseed <- scan(paste(mcmcpath,'/mcmcycoord.txt',sep=''),what=numeric(),quiet=TRUE)
-  } else {
-    rates <- scan(paste(mcmcpath,'/mcmcqrates.txt',sep=''),what=numeric(),quiet=TRUE)
-    tiles <- scan(paste(mcmcpath,'/mcmcqtiles.txt',sep=''),what=numeric(),quiet=TRUE)
-    xseed <- scan(paste(mcmcpath,'/mcmcwcoord.txt',sep=''),what=numeric(),quiet=TRUE)
-    yseed <- scan(paste(mcmcpath,'/mcmczcoord.txt',sep=''),what=numeric(),quiet=TRUE)
-    rates <- 1/(2*rates) ## N = 1/2q
-  }
-  if (!params$longlat) {
-    tempi <- xseed
-    xseed <- yseed
-    yseed <- tempi
-  }
-  return(list(rates=rates,tiles=tiles,xseed=xseed,yseed=yseed))
-}
-
-#' @title 
-#' @param 
+#' reads the underlying graph
+#' @param path path to mcmc output files
+#' @param longlat a binary variable, TRUE if long appears before lat
 #' @export
 read_graph <- function(path, longlat) {
   eems.output <- NULL
@@ -68,8 +47,8 @@ read_graph <- function(path, longlat) {
   return(list(ipmap = ipmap, demes = demes, edges = edges, alpha = alpha, sizes = sizes, outer = outer))
 }
 
-#' @title 
-#' @param 
+#'  checks if files exist
+#' @param files a list of files to check if they exist
 #' @export
 check_files_at_path <- function(files, paths=".", strict=F){
   # checks if ech subfolder `paths` contains all the files in `files`.
@@ -88,57 +67,91 @@ check_files_at_path <- function(files, paths=".", strict=F){
 }
 
 
-#' @title 
-#' @param 
-#' @export
-read_dimns <- function(path, longlat) {
-  eems.output <- NULL
-  nxmrks = NULL
-  nymrks = NULL
-  datapath.outer <- paste0(path, '.outer')
-  mcmcpath.outer <- paste0(path, '/outer.txt')
-  if (file.exists(mcmcpath.outer)) {
-    eems.output <- TRUE
-  } else if (file.exists(datapath.outer)) {
-    eems.output <- FALSE
-  }
-  if (is.null(eems.output)) {
-    stop(paste0(path, ' is neither a datapath nor a mcmcpath.'))
-  }
-  if (eems.output) {
-    outer <- scan(mcmcpath.outer, what = numeric(), quiet = TRUE)
+geo_distm <- function(coord, longlat) {
+  if (!longlat) {
+    long <- coord[, 2]; lat <- coord[, 1]
   } else {
-    outer <- scan(datapath.outer, what = numeric(), quiet = TRUE)
+    long <- coord[, 1]; lat <- coord[, 2]
   }
-  outer <- matrix(outer, ncol = 2, byrow = TRUE)
-  ## "Close" the outline if the first row is not the same as the last row
-  if (sum(head(outer, 1) != tail(outer, 1))) {
-    outer <- rbind(outer, head(outer, 1))
-  }
-  if (!longlat) { outer <- outer[, c(2, 1)] }
-  xlim <- range(outer[, 1])
-  ylim <- range(outer[, 2])
-  aspect <- abs((diff(ylim) / diff(xlim)) / cos(mean(ylim) * pi / 180))
-  ## Choose the number of interpolation in each direction
-  if (is.null(nxmrks) && is.null(nymrks)) {
-    if (aspect > 1) {
-      nxmrks <- 100
-      nymrks <- round(nxmrks * aspect)
-    } else {
-      nymrks <- 100
-      nxmrks <- round(nymrks / aspect)
-    }
-  }
-  ## The interpolation points are equally spaced
-  xmrks <- seq(from = xlim[1], to = xlim[2], length = nxmrks)
-  ymrks <- seq(from = ylim[1], to = ylim[2], length = nymrks)
-  marks <- cbind(rep(xmrks, times = nymrks), rep(ymrks, each = nxmrks))
-  return(list(nxmrks = nxmrks, xmrks = xmrks, xlim = xlim, xspan = diff(xlim),
-              nymrks = nymrks, ymrks = ymrks, ylim = ylim, yspan = diff(ylim),
-              marks = marks, nmrks = c(nxmrks, nymrks),
-              outer = outer))
+  x <- cbind(long, lat)
+  Dist <- sp::spDists(x, x, longlat = TRUE)
+  Dist <- Dist[upper.tri(Dist, diag = FALSE)]
+  return(Dist)
+}
+
+#' plots the diagnostic files to assess whether MAPS fits the data "well"
+#' @param params list of parameter options
+#' @export
+plot_fit_data <- function(params) {
+  oDemes <- scan(paste0(params$mcmcpath, '/rdistoDemes.txt'), quiet = TRUE)
+  oDemes <- matrix(oDemes, ncol = 3, byrow = TRUE)
+  Sizes <- oDemes[, 3]
+  nPops <- nrow(oDemes)
+  Demes <- seq(nPops)
+  Sobs <- as.matrix(read.table(paste0(params$mcmcpath, '/rdistJtDobsJ.txt'), header = FALSE))
+  Shat <- as.matrix(read.table(paste0(params$mcmcpath, '/rdistJtDhatJ.txt'), header = FALSE))
+  colnames(Sobs) <- Demes
+  rownames(Sobs) <- Demes
+  colnames(Shat) <- Demes
+  rownames(Shat) <- Demes
+  Dist = geo_distm(oDemes[, 1:2], longlat)
+  df <- data.frame(Dist=Dist, Sobs = Sobs[upper.tri(Sobs)], Shat = Shat[upper.tri(Shat)], 
+                   Sobs.within = diag(Sobs), Shat.within = diag(Shat), row.names = NULL)
+  
+  plot_pw(df)
+  ggsave(filename = paste0(params$outpath, "/observed_vs_fitted-between.pdf"), width = 4, height = 4)
+  plot_variogram(df)
+  ggsave(paste0(params$outpath, "/semivariogam.pdf"), width = 4, height = 4)
+  plot_ww(df)
+  ggsave(paste0(params$outpath, "/observed_vs_fitted-within.pdf"), width = 4, height = 4)
+
 }
 
 
+plot_pw <- function(df){
+  P <- ggplot(df) + geom_point(aes(y=Sobs, x=Shat), alpha=0.6)  
+  P <- P + theme_classic() + 
+    geom_abline(intercept=0) +
+    theme(legend.position=0) +
+    ylab("Genetic similarity between demes") +
+    xlab("Fitted ssimilarity between demes")  
+  P
+}
 
+plot_ww <- function(df){
+  P <- ggplot(df) + geom_point(aes(y=Sobs.within, x=Shat.within), alpha=0.6)  
+  P <- P + theme_classic() + 
+    geom_abline(intercept=0) +
+    theme(legend.position=0) +
+    ylab("Genetic similarity within demes") +
+    xlab("Fitted ssimilarity within demes")  
+  P
+}
 
+plot_variogram <- function(df){
+  P <- ggplot(df) + geom_point(aes(y=Sobs, x=Dist), alpha=0.6)
+  P + theme_classic() + geom_abline(intercept=0) +
+    theme(legend.position=0) + ylab("Genetic similarity") + 
+    xlab("Geographic Distance")
+  P
+}
+
+#' plots the log-likelihood and prior as a function of MCMC iteration (thinned)
+#' @param params list of parameter options
+#' @export
+plot_trace <- function(params){
+  pilogl <- scan(paste0(params$mcmcpath, '/mcmcpilogl.txt'), quiet = TRUE)
+  pilogl <- data.frame(matrix(pilogl, ncol = 2, byrow = TRUE))
+  colnames(pilogl) <- c("prior", "logll")
+  
+  ggplot(pilogl, aes(y = logll, x = seq(1, length(logll)))) + geom_line() + xlab("thinned iteration")
+  ggsave(paste0(params$outpath, "/logll-trace.pdf"), width = 5, height = 3)
+
+  ggplot(pilogl, aes(y = prior, x = seq(1, length(prior)))) + geom_line() + xlab("thinned iteration")
+  ggsave(paste0(params$outpath, "/prior-trace.pdf"), width = 5, height = 3)
+  
+}
+
+check_params <- function(params){
+  
+}

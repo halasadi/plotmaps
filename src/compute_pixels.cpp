@@ -20,9 +20,9 @@ Eigen::MatrixXd euclidean_dist(const Eigen::MatrixXd &X, const Eigen::MatrixXd &
 //'
 //' @description compute one contour, by filling in each of the pixels/marks
 //'
-//' @param marks
-//' @param now_rates
-//' @param now_seeds
+//' @param marks matrix of pixels
+//' @param now_rates the rate of each voronoi tile
+//' @param now_seeds the locations of each voronoi tile
 //'
 //' @return values vectoring storing the value for each pixel
 //'

@@ -3,11 +3,76 @@
 #' @import ggplot2
 #' @import dplyr
 
+## constructs the dimensions of the main plot as a matrix representing a grid of pixels
+read_dimns <- function(path, longlat) {
+  eems.output <- NULL
+  nxmrks = NULL
+  nymrks = NULL
+  datapath.outer <- paste0(path, '.outer')
+  mcmcpath.outer <- paste0(path, '/outer.txt')
+  if (file.exists(mcmcpath.outer)) {
+    eems.output <- TRUE
+  } else if (file.exists(datapath.outer)) {
+    eems.output <- FALSE
+  }
+  if (is.null(eems.output)) {
+    stop(paste0(path, ' is neither a datapath nor a mcmcpath.'))
+  }
+  if (eems.output) {
+    outer <- scan(mcmcpath.outer, what = numeric(), quiet = TRUE)
+  } else {
+    outer <- scan(datapath.outer, what = numeric(), quiet = TRUE)
+  }
+  outer <- matrix(outer, ncol = 2, byrow = TRUE)
+  ## "Close" the outline if the first row is not the same as the last row
+  if (sum(head(outer, 1) != tail(outer, 1))) {
+    outer <- rbind(outer, head(outer, 1))
+  }
+  if (!longlat) { outer <- outer[, c(2, 1)] }
+  xlim <- range(outer[, 1])
+  ylim <- range(outer[, 2])
+  aspect <- abs((diff(ylim) / diff(xlim)) / cos(mean(ylim) * pi / 180))
+  ## Choose the number of interpolation in each direction
+  if (is.null(nxmrks) && is.null(nymrks)) {
+    if (aspect > 1) {
+      nxmrks <- 100
+      nymrks <- round(nxmrks * aspect)
+    } else {
+      nymrks <- 100
+      nxmrks <- round(nymrks / aspect)
+    }
+  }
+  ## The interpolation points are equally spaced
+  xmrks <- seq(from = xlim[1], to = xlim[2], length = nxmrks)
+  ymrks <- seq(from = ylim[1], to = ylim[2], length = nymrks)
+  marks <- cbind(rep(xmrks, times = nymrks), rep(ymrks, each = nxmrks))
+  return(list(nxmrks = nxmrks, xmrks = xmrks, xlim = xlim, xspan = diff(xlim),
+              nymrks = nymrks, ymrks = ymrks, ylim = ylim, yspan = diff(ylim),
+              marks = marks, nmrks = c(nxmrks, nymrks),
+              outer = outer))
+}
 
-library(ggplot2)
-library(maps)
-library(mapproj)
-library(dplyr)
+## reads each voronoi tile
+read_voronoi <- function(mcmcpath,params) {
+  if (params$is.mrates) {
+    rates <- scan(paste(mcmcpath,'/mcmcmrates.txt',sep=''),what=numeric(),quiet=TRUE)
+    tiles <- scan(paste(mcmcpath,'/mcmcmtiles.txt',sep=''),what=numeric(),quiet=TRUE)
+    xseed <- scan(paste(mcmcpath,'/mcmcxcoord.txt',sep=''),what=numeric(),quiet=TRUE)
+    yseed <- scan(paste(mcmcpath,'/mcmcycoord.txt',sep=''),what=numeric(),quiet=TRUE)
+  } else {
+    rates <- scan(paste(mcmcpath,'/mcmcqrates.txt',sep=''),what=numeric(),quiet=TRUE)
+    tiles <- scan(paste(mcmcpath,'/mcmcqtiles.txt',sep=''),what=numeric(),quiet=TRUE)
+    xseed <- scan(paste(mcmcpath,'/mcmcwcoord.txt',sep=''),what=numeric(),quiet=TRUE)
+    yseed <- scan(paste(mcmcpath,'/mcmczcoord.txt',sep=''),what=numeric(),quiet=TRUE)
+    rates <- 1/(2*rates) ## N = 1/2q
+  }
+  if (!params$longlat) {
+    tempi <- xseed
+    xseed <- yseed
+    yseed <- tempi
+  }
+  return(list(rates=rates,tiles=tiles,xseed=xseed,yseed=yseed))
+}
 
 
 add_graph <- function(g, color="black"){
@@ -61,8 +126,8 @@ compute_rates_each_pixel <- function(mcmcpath,dimns,params) {
 
 #' @title adds contours
 #' @useDynLib plotmaps
-#' @param mcmcpath 
-#' @param dimns
+#' @param mcmcpath path to the mcmc output files
+#' @param dimns grid layout (where each entry is a pixel) to build the picture
 #' @param g a ggplot2 object
 #' @param params list of parameters
 #'
@@ -132,7 +197,7 @@ add_contour <- function(mcmcpath, dimns, summary_stats, g, params){
   
   if (params$plot.sign){
     eems.colors <- scale_fill_gradientn(colours=default_eems_colors(),
-                                        name="p(x > mean)")
+                                        name="p(x > mean)", limits = c(0,1))
   } else {
     if (params$is.mrates) {
       eems.colors <- scale_fill_gradientn(colours=default_eems_colors(),
@@ -176,7 +241,9 @@ get_boundary_map <- function(bbox){
 }
 
 #' make_map
-#' @param 
+#' @param dimns the grid layout (nrow*ncol=npixels) to build the picture
+#' @param params a list containing the plot options
+#' @return ggplot2 pobject
 #' @export
 #' 
 make_map <- function(dimns, params){
@@ -203,5 +270,33 @@ make_map <- function(dimns, params){
   }
   
   return(g)
+}
+
+#' plot MAPS output
+#' @param params a list containing the plot options
+#' @export
+#' 
+plotmaps <- function(params){
+  dir.create(file.path(params$outpath), showWarnings = FALSE)
+  dimns <- read_dimns(params$mcmcpath, longlat)
+  g <- make_map(dimns, params)
+  add_contours(params$mcmcpath, dimns, g, params)
+  
+  filename <- params$outpath
+  if (params$is.mrates){
+    filename <- paste0(filename, "/mrates-")
+  } else{
+    filename <- paste0(filename, "/Nsizes-")
+  }
+  
+  if (params$plot.mean){
+    filename <- paste0(filename, "mean.pdf")
+  } else if (params$plot.median) {
+    filename <- paste0(filename, "median.pdf")
+  } else{
+    filename <- paste0(filename, "signplot.pdf")
+  }
+
+  ggsave(filename, width = params$width, height = params$height)
 }
 
