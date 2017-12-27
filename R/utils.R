@@ -2,12 +2,6 @@
 #' @param 
 #' @export
 default_eems_colors <- function( ) {
-  writeLines(paste0("Using the default DarkOrange to Blue color scheme, with 'white' as the midpoint color.\n",
-                    "It combines two color schemes from the 'dichromat' package, which itself is based on\n",
-                    "a collection of color schemes for scientific data graphics:\n",
-                    "\tLight A and Bartlein PJ (2004). The End of the Rainbow? Color Schemes for Improved Data\n",
-                    "\tGraphics. EOS Transactions of the American Geophysical Union, 85(40), 385.\n",
-                    "See also http://geog.uoregon.edu/datagraphics/color_scales.htm\n\n\n"))
   ## To reproduce the default eems colors:
   ## Oranges <- dichromat::colorschemes$BluetoDarkOrange.12[12:7]
   ## Blues <- dichromat::colorschemes$BrowntoBlue.12[7:12]
@@ -144,4 +138,7 @@ read_dimns <- function(path, longlat) {
               marks = marks, nmrks = c(nxmrks, nymrks),
               outer = outer))
 }
+
+
+
 

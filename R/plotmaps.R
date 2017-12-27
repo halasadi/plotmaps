@@ -21,25 +21,18 @@ add_graph <- function(g, color="black"){
 
 compute_summary_statistic <- function(mcmcpath, dimns, params){
   rslts <- compute_rates_each_pixel(path,dimns,params)
-  mean.rate <- matrix(0,dimns$nxmrks,dimns$nymrks)
-  niter <- length(rslts)
-  for (i in 1:niter){
-    mean.rate <- mean.rate + rslts[[i]]
-  }
-  mean.rate <- mean.rate/length(rslts)
   
-  med.rate <- matrix(NA,dimns$nxmrks,dimns$nymrks)
-  for (i in 1:dimns$nxmrks){
-    for (j in 1:dimns$nymrks){
-      rates <- rep(0, niter)
-      for (k in 1:niter){
-        rates[k] <- rslts[[k]][i,j]
-      }
-      med.rate[i,j] <- median(rates)
-    }
-  }
+  # mean 
+  mean.rate <- apply(rslts, c(2,3), mean)
   
-  return(list(avg=mean.rate, med = med.rate))
+  # median
+  med.rate  <- apply(rslts, c(2,3), median)
+  
+  # measure of credibility of a barrier
+  base.rate <- mean(med.rate)
+  upper.ci  <- apply(rslts, c(2,3), function(x){ mean(x > base.rate)})
+  
+  return(list(avg=mean.rate, med = med.rate, upper.ci=upper.ci))
 }
 
 compute_rates_each_pixel <- function(mcmcpath,dimns,params) {
@@ -52,7 +45,7 @@ compute_rates_each_pixel <- function(mcmcpath,dimns,params) {
   niter <- length(tiles)
   count <- 0
   means  <- matrix(0, dimns$nxmrks, dimns$nymrks)
-  pixelated.tiles <- list()
+  pixelated.tiles <- array(dim = c(niter, dimns$nxmrks, dimns$nymrks))
   for (i in 1:niter) {
     now.tiles <- tiles[i]
     now.rates <- rates[(count+1):(count+now.tiles)]
@@ -60,7 +53,7 @@ compute_rates_each_pixel <- function(mcmcpath,dimns,params) {
     now.yseed <- yseed[(count+1):(count+now.tiles)]
     now.seeds <- cbind(now.xseed,now.yseed)
     rslts <- compute_contour_vals(dimns$marks, now.rates, now.seeds)
-    pixelated.tiles[[i]] <- matrix(rslts,  nrow = dimns$nxmrks, ncol = dimns$nymrks)
+    pixelated.tiles[i,,] <- matrix(rslts,  nrow = dimns$nxmrks, ncol = dimns$nymrks)
     count <- count + now.tiles
   }
   return(pixelated.tiles)
@@ -79,11 +72,11 @@ compute_rates_each_pixel <- function(mcmcpath,dimns,params) {
 ## see: https://stackoverflow.com/questions/36605955/c-function-not-available
 add_contours <- function(mcmcpath,dimns, g, params) {
   if (params$is.mrates) {
-    message('Plotting migration rates m : posterior mean')
+    message('reading in migration rates')
     files <- c('/mcmcmtiles.txt','/mcmcmrates.txt', 
                '/mcmcxcoord.txt','/mcmcycoord.txt')
   } else {
-    message('Plotting population sizes N : posterior mean')
+    message('reading in population sizes N')
     files <- c('/mcmcqtiles.txt','/mcmcqrates.txt', 
                '/mcmcwcoord.txt','/mcmczcoord.txt')
   }
@@ -91,17 +84,17 @@ add_contours <- function(mcmcpath,dimns, g, params) {
   mcmcpath <- check_files_at_path(files, mcmcpath)
   n_runs <- length(mcmcpath)
   if (n_runs==0) { stop(paste0(mcmcpath, ' is not a valid mcmcpath')) }
-  if (n_runs>1)  {  stop(paste0(mcmcpath, ' the MAPS plotting package plots only run')) }
+  if (n_runs>1)  {  stop(paste0(mcmcpath, ' the MAPS plotting package plots only one run')) }
+  
   
   summary_stats <- compute_summary_statistic(mcmcpath, dimns, params)
-
-  if (params$plot.median){
-    return(add_contour(mcmcpath, dimns, summary_stats$med,
-                       g, params))
-  } else{
-    return(add_contour(mcmcpath, dimns, summary_stats$avg,
-                       g, params))
+  
+  if (sum(c(params$plot.median, params$plot.mean, params$plot.sign)) != 1){
+    stop("you must plot only one of the following: mean, median, or probability of positive sign")
   }
+  
+  return(add_contour(mcmcpath, dimns, summary_stats,
+              g, params))
 }
 
 add_pts <- function(g, color="#efefefdd", const_size=T){
@@ -116,9 +109,18 @@ add_pts <- function(g, color="#efefefdd", const_size=T){
   }
 }
 
-add_contour <- function(mcmcpath, dimns, summary_stat, g, params){
+
+add_contour <- function(mcmcpath, dimns, summary_stats, g, params){
   x <- dimns$marks[,1]
   y <- dimns$marks[,2]
+  
+  if (params$plot.median){
+    summary_stat = summary_stats$med
+  } else if (params$plot.mean) {
+    summary_stat = summary_stats$avg
+  } else if (params$plot.sign) {
+    summary_stat = summary_stats$upper.ci
+  }
   
   df <- data.frame(x=x, y=y, ss=c(summary_stat))
   
@@ -128,12 +130,17 @@ add_contour <- function(mcmcpath, dimns, summary_stat, g, params){
   limits = c(min(c(df$ss, a)),
              max(c(df$ss, b)))
   
-  if (params$is.mrates) {
+  if (params$plot.sign){
     eems.colors <- scale_fill_gradientn(colours=default_eems_colors(),
-                                        name="m", limits=limits, trans = "log10")
+                                        name="p(x > mean)")
   } else {
-    eems.colors <- scale_fill_gradientn(colours=default_eems_colors(),
+    if (params$is.mrates) {
+      eems.colors <- scale_fill_gradientn(colours=default_eems_colors(),
+                                          name="m", limits=limits, trans = "log10")
+    } else {
+      eems.colors <- scale_fill_gradientn(colours=default_eems_colors(),
                                         name="N", limits=limits, trans = "log10")
+    } 
   }
   
   g <- g + geom_tile(data=df, aes(x=x, y=y, fill=ss), alpha = 1) + 
