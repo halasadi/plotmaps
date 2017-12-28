@@ -53,8 +53,8 @@ read_dimns <- function(path, longlat) {
 }
 
 ## reads each voronoi tile
-read_voronoi <- function(mcmcpath,params) {
-  if (params$is.mrates) {
+read_voronoi <- function(mcmcpath, ...) {
+  if (is.mrates) {
     rates <- scan(paste(mcmcpath,'/mcmcmrates.txt',sep=''),what=numeric(),quiet=TRUE)
     tiles <- scan(paste(mcmcpath,'/mcmcmtiles.txt',sep=''),what=numeric(),quiet=TRUE)
     xseed <- scan(paste(mcmcpath,'/mcmcxcoord.txt',sep=''),what=numeric(),quiet=TRUE)
@@ -66,7 +66,7 @@ read_voronoi <- function(mcmcpath,params) {
     yseed <- scan(paste(mcmcpath,'/mcmczcoord.txt',sep=''),what=numeric(),quiet=TRUE)
     rates <- 1/(2*rates) ## N = 1/2q
   }
-  if (!params$longlat) {
+  if (!longlat) {
     tempi <- xseed
     xseed <- yseed
     yseed <- tempi
@@ -84,8 +84,8 @@ add_graph <- function(g, color="black"){
   geom_segment(aes(x=xstart, y=ystart, xend=xend, yend=yend), data=grid, color=color, alpha=0.3)
 }
 
-compute_summary_statistic <- function(mcmcpath, dimns, params){
-  rslts <- compute_rates_each_pixel(path,dimns,params)
+compute_summary_statistic <- function(mcmcpath, dimns, ...){
+  rslts <- compute_rates_each_pixel(path,dimns)
   
   # mean 
   mean.rate <- apply(rslts, c(2,3), mean)
@@ -100,8 +100,8 @@ compute_summary_statistic <- function(mcmcpath, dimns, params){
   return(list(avg=mean.rate, med = med.rate, upper.ci=upper.ci))
 }
 
-compute_rates_each_pixel <- function(mcmcpath,dimns,params) {
-  voronoi <- read_voronoi(mcmcpath, params)
+compute_rates_each_pixel <- function(mcmcpath,dimns,...) {
+  voronoi <- read_voronoi(mcmcpath)
   rates <- voronoi$rates
   tiles <- voronoi$tiles
   xseed <- voronoi$xseed
@@ -129,37 +129,30 @@ compute_rates_each_pixel <- function(mcmcpath,dimns,params) {
 #' @param mcmcpath path to the mcmc output files
 #' @param dimns grid layout (where each entry is a pixel) to build the picture
 #' @param g a ggplot2 object
-#' @param params list of parameters
 #'
 #' @return ggplot2 object
 #' @export
 ## We need to include the useDynLib somewhere in our documentation
 ## see: https://stackoverflow.com/questions/36605955/c-function-not-available
-add_contours <- function(mcmcpath,dimns, g, params) {
-  if (params$is.mrates) {
+add_contours <- function(mcmcpath,dimns, g, ...) {
+  if (is.mrates) {
     message('reading in migration rates')
-    files <- c('/mcmcmtiles.txt','/mcmcmrates.txt', 
-               '/mcmcxcoord.txt','/mcmcycoord.txt')
   } else {
     message('reading in population sizes N')
-    files <- c('/mcmcqtiles.txt','/mcmcqrates.txt', 
-               '/mcmcwcoord.txt','/mcmczcoord.txt')
   }
   
-  mcmcpath <- check_files_at_path(files, mcmcpath)
   n_runs <- length(mcmcpath)
   if (n_runs==0) { stop(paste0(mcmcpath, ' is not a valid mcmcpath')) }
   if (n_runs>1)  {  stop(paste0(mcmcpath, ' the MAPS plotting package plots only one run')) }
   
   
-  summary_stats <- compute_summary_statistic(mcmcpath, dimns, params)
+  summary_stats <- compute_summary_statistic(mcmcpath, dimns)
   
-  if (sum(c(params$plot.median, params$plot.mean, params$plot.sign)) != 1){
+  if (sum(c(plot.median, plot.mean, plot.sign)) != 1){
     stop("you must plot only one of the following: mean, median, or probability of positive sign")
   }
   
-  return(add_contour(mcmcpath, dimns, summary_stats,
-              g, params))
+  return(add_contour(mcmcpath, dimns, summary_stats, g))
 }
 
 add_pts <- function(g, color="#efefefdd", const_size=T){
@@ -175,15 +168,15 @@ add_pts <- function(g, color="#efefefdd", const_size=T){
 }
 
 
-add_contour <- function(mcmcpath, dimns, summary_stats, g, params){
+add_contour <- function(mcmcpath, dimns, summary_stats, g, ...){
   x <- dimns$marks[,1]
   y <- dimns$marks[,2]
   
-  if (params$plot.median){
+  if (plot.median){
     summary_stat = summary_stats$med
-  } else if (params$plot.mean) {
+  } else if (plot.mean) {
     summary_stat = summary_stats$avg
-  } else if (params$plot.sign) {
+  } else if (plot.sign) {
     summary_stat = summary_stats$upper.ci
   }
   
@@ -195,11 +188,11 @@ add_contour <- function(mcmcpath, dimns, summary_stats, g, params){
   limits = c(min(c(df$ss, a)),
              max(c(df$ss, b)))
   
-  if (params$plot.sign){
+  if (plot.sign){
     eems.colors <- scale_fill_gradientn(colours=default_eems_colors(),
                                         name="p(x > mean)", limits = c(0,1))
   } else {
-    if (params$is.mrates) {
+    if (is.mrates) {
       eems.colors <- scale_fill_gradientn(colours=default_eems_colors(),
                                           name="m", limits=limits, trans = "log10")
     } else {
@@ -213,11 +206,11 @@ add_contour <- function(mcmcpath, dimns, summary_stats, g, params){
   
   graph <- read_graph(mcmcpath, longlat)
   
-  if (params$add.graph){
+  if (add.graph){
     g <- g + add_graph(graph)
   }
   
-  if (params$add.pts){
+  if (add.pts){
     g <- g + add_pts(graph, col = "black")
   }
   return(g)
@@ -242,11 +235,10 @@ get_boundary_map <- function(bbox){
 
 #' make_map
 #' @param dimns the grid layout (nrow*ncol=npixels) to build the picture
-#' @param params a list containing the plot options
 #' @return ggplot2 pobject
 #' @export
 #' 
-make_map <- function(dimns, params){
+make_map <- function(dimns, add.countries){
   boundary <- dimns$outer
   bbox <- c(left=min(boundary[,1]), right=max(boundary[,1]),
             bottom=min(boundary[,2]), top=max(boundary[,2]))
@@ -258,7 +250,7 @@ make_map <- function(dimns, params){
   g=g+theme(axis.text.y=element_text(size=12),axis.title.y=element_text(size=12))
   g=g + theme_classic()
   
-  if (params$add.countries){
+  if (add.countries){
     m_boundary <- get_boundary_map(bbox)
     g = g + coord_map("mercator", parameters=NULL,  xlim=bbox[c('left', 'right')],
                       ylim=bbox[c('bottom', 'top')]) + 
@@ -272,31 +264,74 @@ make_map <- function(dimns, params){
   return(g)
 }
 
-#' plot MAPS output
+#' plot contour plot
 #' @param params a list containing the plot options
 #' @export
 #' 
-plotmaps <- function(params){
-  dir.create(file.path(params$outpath), showWarnings = FALSE)
-  dimns <- read_dimns(params$mcmcpath, longlat)
-  g <- make_map(dimns, params)
-  add_contours(params$mcmcpath, dimns, g, params)
+plot_contour <- function(mcmcpath, outpath, longlat,
+                         is.mrates, plot.mean, plot.median, 
+                         plot.sign, width, height, ...){
+  dimns <- read_dimns(mcmcpath, longlat)
+  g <- make_map(dimns, add.countries)
+  add_contours(mcmcpath, dimns, g, ...)
   
-  filename <- params$outpath
-  if (params$is.mrates){
+  filename <- outpath
+  if (is.mrates){
     filename <- paste0(filename, "/mrates-")
   } else{
     filename <- paste0(filename, "/Nsizes-")
   }
   
-  if (params$plot.mean){
+  if (plot.mean){
     filename <- paste0(filename, "mean.pdf")
-  } else if (params$plot.median) {
+  } else if (plot.median) {
     filename <- paste0(filename, "median.pdf")
   } else{
     filename <- paste0(filename, "signplot.pdf")
   }
 
-  ggsave(filename, width = params$width, height = params$height)
+  ggsave(filename, width = width, height = height)
 }
 
+
+#' plot all
+#' @param params a list containing the plot options
+#' @export
+#' 
+plot_all <- function(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
+                     plot.median = FALSE, longlat, mcmcpath, outpath,
+                     width = 10, height = 6){
+  
+  dir.create(file.path(outpath), showWarnings = FALSE)
+  
+  files <- c('/mcmcmtiles.txt','/mcmcmrates.txt', 
+             '/mcmcxcoord.txt','/mcmcycoord.txt',
+             '/mcmcqtiles.txt','/mcmcqrates.txt',
+             '/mcmcpilogl.txt', '/rdistoDemes.txt',
+             '/rdistJtDobsJ.txt', '/rdistJtDhatJ.txt')
+  mcmcpath <- check_files_at_path(files, mcmcpath)
+  
+  if (plot.median){
+    plot.mean= FALSE
+  }
+  
+  # migration plot
+  plot_contour(mcmcpath, outpath, longlat,
+               is.mrates = TRUE, plot.mean, plot.median, 
+               plot.sign = FALSE, width, height)
+  # migration sign plot
+  plot_contour(mcmcpath, outpath, longlat,
+               is.mrates = TRUE, plot.mean, plot.median, 
+               plot.sign = TRUE, width, height)
+  # population size plot
+  plot_contour(mcmcpath, outpath, longlat,
+               is.mrates = FALSE, plot.mean, plot.median, 
+               plot.sign = FALSE, width, height)
+  # population size sign plot
+  plot_contour(mcmcpath, outpath, longlat,
+               is.mrates = FALSE, plot.mean, plot.median, 
+               plot.sign = TRUE, width, height)
+  
+  plot_trace(mcmcpath, outpath) 
+  plot_fit_data(mcmcpath, outpath)
+}

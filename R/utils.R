@@ -82,14 +82,14 @@ geo_distm <- function(coord, longlat) {
 #' plots the diagnostic files to assess whether MAPS fits the data "well"
 #' @param params list of parameter options
 #' @export
-plot_fit_data <- function(params) {
-  oDemes <- scan(paste0(params$mcmcpath, '/rdistoDemes.txt'), quiet = TRUE)
+plot_fit_data <- function(mcmcpath, outpath) {
+  oDemes <- scan(paste0(mcmcpath, '/rdistoDemes.txt'), quiet = TRUE)
   oDemes <- matrix(oDemes, ncol = 3, byrow = TRUE)
   Sizes <- oDemes[, 3]
   nPops <- nrow(oDemes)
   Demes <- seq(nPops)
-  Sobs <- as.matrix(read.table(paste0(params$mcmcpath, '/rdistJtDobsJ.txt'), header = FALSE))
-  Shat <- as.matrix(read.table(paste0(params$mcmcpath, '/rdistJtDhatJ.txt'), header = FALSE))
+  Sobs <- as.matrix(read.table(paste0(mcmcpath, '/rdistJtDobsJ.txt'), header = FALSE))
+  Shat <- as.matrix(read.table(paste0(mcmcpath, '/rdistJtDhatJ.txt'), header = FALSE))
   colnames(Sobs) <- Demes
   rownames(Sobs) <- Demes
   colnames(Shat) <- Demes
@@ -99,11 +99,11 @@ plot_fit_data <- function(params) {
                    Sobs.within = diag(Sobs), Shat.within = diag(Shat), row.names = NULL)
   
   plot_pw(df)
-  ggsave(filename = paste0(params$outpath, "/observed_vs_fitted-between.pdf"), width = 4, height = 4)
+  ggsave(filename = paste0(outpath, "/observed_vs_fitted-between.pdf"), width = 4, height = 4)
   plot_variogram(df)
-  ggsave(paste0(params$outpath, "/semivariogam.pdf"), width = 4, height = 4)
+  ggsave(paste0(outpath, "/semivariogam.pdf"), width = 4, height = 4)
   plot_ww(df)
-  ggsave(paste0(params$outpath, "/observed_vs_fitted-within.pdf"), width = 4, height = 4)
+  ggsave(paste0(outpath, "/observed_vs_fitted-within.pdf"), width = 4, height = 4)
 
 }
 
@@ -139,19 +139,15 @@ plot_variogram <- function(df){
 #' plots the log-likelihood and prior as a function of MCMC iteration (thinned)
 #' @param params list of parameter options
 #' @export
-plot_trace <- function(params){
-  pilogl <- scan(paste0(params$mcmcpath, '/mcmcpilogl.txt'), quiet = TRUE)
+plot_trace <- function(mcmcpath, outpath){
+  pilogl <- scan(paste0(mcmcpath, '/mcmcpilogl.txt'), quiet = TRUE)
   pilogl <- data.frame(matrix(pilogl, ncol = 2, byrow = TRUE))
   colnames(pilogl) <- c("prior", "logll")
   
   ggplot(pilogl, aes(y = logll, x = seq(1, length(logll)))) + geom_line() + xlab("thinned iteration")
-  ggsave(paste0(params$outpath, "/logll-trace.pdf"), width = 5, height = 3)
+  ggsave(paste0(outpath, "/logll-trace.pdf"), width = 5, height = 3)
 
   ggplot(pilogl, aes(y = prior, x = seq(1, length(prior)))) + geom_line() + xlab("thinned iteration")
-  ggsave(paste0(params$outpath, "/prior-trace.pdf"), width = 5, height = 3)
-  
-}
-
-check_params <- function(params){
+  ggsave(paste0(outpath, "/prior-trace.pdf"), width = 5, height = 3)
   
 }
