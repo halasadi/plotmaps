@@ -7,5 +7,5 @@ path = "~/eems2/test-plotting/test-data/"
 
 
 plot_all(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
-         plot.median = FALSE, longlat = TRUE, mcmcpath = path, outpath = "garbage/",
+         plot.median = TRUE, longlat = TRUE, mcmcpath = path, outpath = "garbage/",
          width = 10, height = 6)

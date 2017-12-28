@@ -35,7 +35,7 @@ read_graph <- function(path, longlat) {
   outer <- scan(paste0(path, '/outer.txt'), what = numeric(), quiet = TRUE)
   demes <- matrix(demes, ncol = 2, byrow = TRUE)
   outer <- matrix(outer, ncol = 2, byrow = TRUE)
-  edges <- read.table(paste0(mcmcpath, '/edges.txt'), colClasses = numeric())
+  edges <- read.table(paste0(path, '/edges.txt'), colClasses = numeric())
   edges <- as.matrix(edges)
   if (!longlat) {
     demes <- demes[, c(2, 1)]
@@ -82,7 +82,7 @@ geo_distm <- function(coord, longlat) {
 #' plots the diagnostic files to assess whether MAPS fits the data "well"
 #' @param params list of parameter options
 #' @export
-plot_fit_data <- function(mcmcpath, outpath) {
+plot_fit_data <- function(mcmcpath, outpath, longlat) {
   oDemes <- scan(paste0(mcmcpath, '/rdistoDemes.txt'), quiet = TRUE)
   oDemes <- matrix(oDemes, ncol = 3, byrow = TRUE)
   Sizes <- oDemes[, 3]
