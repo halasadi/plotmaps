@@ -95,14 +95,16 @@ plot_fit_data <- function(mcmcpath, outpath, longlat) {
   colnames(Shat) <- Demes
   rownames(Shat) <- Demes
   Dist = geo_distm(oDemes[, 1:2], longlat)
-  df <- data.frame(Dist=Dist, Sobs = Sobs[upper.tri(Sobs)], Shat = Shat[upper.tri(Shat)], 
-                   Sobs.within = diag(Sobs), Shat.within = diag(Shat), row.names = NULL)
+  df.between <- data.frame(Dist=Dist, Sobs = Sobs[upper.tri(Sobs)], Shat = Shat[upper.tri(Shat)],
+        row.names = NULL)
+        
+  df.within <- data.frame(Sobs.within = diag(Sobs), Shat.within = diag(Shat), row.names=NULL)
   
-  plot_pw(df)
+  plot_pw(df.between)
   ggsave(filename = paste0(outpath, "/observed_vs_fitted-between.pdf"), width = 4, height = 4)
-  plot_variogram(df)
+  plot_variogram(df.between)
   ggsave(paste0(outpath, "/semivariogam.pdf"), width = 4, height = 4)
-  plot_ww(df)
+  plot_ww(df.within)
   ggsave(paste0(outpath, "/observed_vs_fitted-within.pdf"), width = 4, height = 4)
 
 }

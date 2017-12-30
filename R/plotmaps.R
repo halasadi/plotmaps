@@ -86,16 +86,25 @@ add_graph <- function(g, color="black"){
 
 compute_summary_statistic <- function(params, dimns){
   rslts <- compute_rates_each_pixel(params,dimns)
+  mean.rate = NA
+  med.rate = NA
+  upper.ci = NA
   
   # mean 
-  mean.rate <- apply(rslts, c(2,3), mean)
-  
+  if (params$plot.mean){
+    mean.rate <- apply(rslts, c(2,3), mean)
+  }
+
   # median
-  med.rate  <- apply(rslts, c(2,3), median)
-  
-  # measure of credibility of a barrier
-  base.rate <- mean(med.rate)
-  upper.ci  <- apply(rslts, c(2,3), function(x){ mean(x > base.rate)})
+  if (params$plot.median | params$plot.sign){
+    med.rate  <- apply(rslts, c(2,3), median)
+  }
+
+  if (params$plot.sign) {
+    # measure of credibility of a barrier
+    base.rate <- mean(med.rate)
+    upper.ci  <- apply(rslts, c(2,3), function(x){ mean(x > base.rate)})
+  }
   
   return(list(avg=mean.rate, med = med.rate, upper.ci=upper.ci))
 }
@@ -196,7 +205,7 @@ add_contour <- function(params, dimns, summary_stats, g){
     } 
   }
   
-  g <- g + geom_tile(data=df, aes(x=x, y=y, fill=ss), alpha = 1) + 
+  g <- g + geom_tile(data=df, aes(x=x, y=y, fill=ss), alpha = 0.75) + 
     eems.colors + coord_fixed()
   
   graph <- read_graph(params$mcmcpath, params$longlat)
@@ -228,23 +237,16 @@ get_boundary_map <- function(bbox){
   return(m)
 }
 
-#' make_map
+#' add_map
 #' @param dimns the grid layout (nrow*ncol=npixels) to build the picture
 #' @return ggplot2 pobject
 #' @export
 #' 
-make_map <- function(dimns, params){
+add_map <- function(dimns, params, g){
   boundary <- dimns$outer
   bbox <- c(left=min(boundary[,1]), right=max(boundary[,1]),
             bottom=min(boundary[,2]), top=max(boundary[,2]))
   bbox['top'] <- pmin(bbox['top'], 83)
-  
-  g <- ggplot()
-
-  g=g+theme(axis.text.x=element_text(size=12),axis.title.x=element_text(size=12))         
-  g=g+theme(axis.text.y=element_text(size=12),axis.title.y=element_text(size=12))
-  g=g + theme_classic()
-  
   if (params$add.countries){
     m_boundary <- get_boundary_map(bbox)
     g = g + coord_map("mercator", parameters=NULL,  xlim=bbox[c('left', 'right')],
@@ -265,8 +267,14 @@ make_map <- function(dimns, params){
 #' 
 plot_contour <- function(params){
   dimns <- read_dimns(params$mcmcpath, params$longlat)
-  g <- make_map(dimns, params)
-  add_contours(params, dimns, g)
+  
+  g <- ggplot()
+  g=g+theme(axis.text.x=element_text(size=12),axis.title.x=element_text(size=12))         
+  g=g+theme(axis.text.y=element_text(size=12),axis.title.y=element_text(size=12))
+  g=g + theme_classic()
+  g <- add_map(dimns, params, g) 
+  g <- add_contours(params, dimns, g) 
+
   
   filename <- params$outpath
   if (params$is.mrates){
@@ -341,7 +349,7 @@ plot_all <- function(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
   params$plot.median = FALSE
   plot_contour(params)
   
-  
+  message('plotting diagonostics of model fit and MCMC convergence')
   plot_trace(mcmcpath, outpath) 
   plot_fit_data(mcmcpath, outpath, params$longlat)
 }
