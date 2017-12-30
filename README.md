@@ -6,4 +6,4 @@ This code heavily adapts code from the EEMS plotting scripts (https://github.com
 and Ben Peter's plotting scripts (https://github.com/BenjaminPeter/eems-around-the-world-draft/tree/master/scripts).
 
 
-- Hussein Al-Asadi
+Hussein Al-Asadi
