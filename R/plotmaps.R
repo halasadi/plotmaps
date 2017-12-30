@@ -205,7 +205,7 @@ add_contour <- function(params, dimns, summary_stats, g){
     } 
   }
   
-  g <- g + geom_tile(data=df, aes(x=x, y=y, fill=ss), alpha = 0.75) + 
+  g <- g + geom_tile(data=df, aes(x=x, y=y, fill=ss), alpha = 1) + 
     eems.colors + coord_fixed()
   
   graph <- read_graph(params$mcmcpath, params$longlat)
@@ -237,6 +237,33 @@ get_boundary_map <- function(bbox){
   return(m)
 }
 
+#' make_base
+#' @param dimns the grid layout (nrow*ncol=npixels) to build the picture
+#' @return ggplot2 pobject
+#' @export
+#' 
+make_base <- function(dimns, params, g){
+  
+  g <- ggplot() + xlab("long") + ylab("lat")
+  g=g+theme(axis.text.x=element_text(size=12),axis.title.x=element_text(size=12))         
+  g=g + theme_classic()
+  
+  if (params$add.countries){
+    boundary <- dimns$outer
+    bbox <- c(left=min(boundary[,1]), right=max(boundary[,1]),
+              bottom=min(boundary[,2]), top=max(boundary[,2]))
+    bbox['top'] <- pmin(bbox['top'], 83)
+    m_boundary <- get_boundary_map(bbox)
+    g = g + coord_map("mercator", parameters=NULL,  xlim=bbox[c('left', 'right')],
+                      ylim=bbox[c('bottom', 'top')]) + 
+      xlim(bbox[c('left', 'right')])+ 
+      ylim(bbox[c('bottom', 'top')])
+  }
+  
+  return(g)
+}
+
+
 #' add_map
 #' @param dimns the grid layout (nrow*ncol=npixels) to build the picture
 #' @return ggplot2 pobject
@@ -247,17 +274,9 @@ add_map <- function(dimns, params, g){
   bbox <- c(left=min(boundary[,1]), right=max(boundary[,1]),
             bottom=min(boundary[,2]), top=max(boundary[,2]))
   bbox['top'] <- pmin(bbox['top'], 83)
-  if (params$add.countries){
-    m_boundary <- get_boundary_map(bbox)
-    g = g + coord_map("mercator", parameters=NULL,  xlim=bbox[c('left', 'right')],
-                      ylim=bbox[c('bottom', 'top')]) + 
-      xlim(bbox[c('left', 'right')])+ 
-      ylim(bbox[c('bottom', 'top')])
-
-    g = g + geom_path(data=m_boundary, aes(x=long, y=lat, group=group),  color='black', size=0.5, 
-                      alpha = 1)
-  }
-  
+  m_boundary <- get_boundary_map(bbox)
+  g = g + geom_path(data=m_boundary, aes(x=long, y=lat, group=group),  color='black', size=0.5, 
+                    alpha = 1)
   return(g)
 }
 
@@ -268,12 +287,12 @@ add_map <- function(dimns, params, g){
 plot_contour <- function(params){
   dimns <- read_dimns(params$mcmcpath, params$longlat)
   
-  g <- ggplot()
-  g=g+theme(axis.text.x=element_text(size=12),axis.title.x=element_text(size=12))         
-  g=g+theme(axis.text.y=element_text(size=12),axis.title.y=element_text(size=12))
-  g=g + theme_classic()
-  g <- add_map(dimns, params, g) 
+  
+  g <- make_base(dimns, params) 
   g <- add_contours(params, dimns, g) 
+  if (params$add.countries){
+    g <- add_map(dimns, params, g)
+  }
 
   
   filename <- params$outpath
