@@ -4,8 +4,10 @@ An R-package for plotting the output of the MAPS software (https://github.com/ha
 
 # Installation
 
+```
 install.packages("devtools")
-devtools::install_github("ancient-space-time/variogramr")
+devtools::install_github("halasadi/plotmaps")
+```
 
 # Credits
 
