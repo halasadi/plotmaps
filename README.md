@@ -2,8 +2,14 @@
 
 An R-package for plotting the output of the MAPS software (https://github.com/halasadi/MAPS). 
 
-This code heavily adapts code from the EEMS plotting scripts (https://github.com/dipetkov/eems/tree/master/plotting)
-and Ben Peter's plotting scripts (https://github.com/BenjaminPeter/eems-around-the-world-draft/tree/master/scripts).
+# Installation
 
+install.packages("devtools")
+devtools::install_github("ancient-space-time/variogramr")
 
-Hussein Al-Asadi
+# Credits
+
+Developed by Hussein Al-Asadi. 
+
+The codes are adapted from the EEMS plotting scripts (https://github.com/dipetkov/eems/tree/master/plotting)
+and Ben Peter's plotting scripts (https://github.com/BenjaminPeter/eems-around-the-world-draft/tree/master/scripts). Thanks to Desi and Ben for posting their code on Github.
