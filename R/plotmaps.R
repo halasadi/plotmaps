@@ -189,24 +189,31 @@ add_contour <- function(params, dimns, summary_stats, g){
   mu = mean(log10(summary_stat))
   a = 10^(mu - 1)
   b = 10^(mu + 1)
-  limits = c(min(c(df$ss, a)),
-             max(c(df$ss, b)))
   
   if (params$plot.sign){
     eems.colors <- scale_fill_gradientn(colours=default_eems_colors(),
                                         name="p(x > mean)", limits = c(0,1))
   } else {
+    
+    low  <- min(a, 10^(ceiling(log10(min(df$ss)))))
+    mid  <- 10^(round(log10(mean(df$ss))))
+    high <- max(b, 10^(floor(log10(max(df$ss)))))
+    my.breaks <- c(low, mid, high)
+    
     if (params$is.mrates) {
       eems.colors <- scale_fill_gradientn(colours=default_eems_colors(),
-                                          name="m", limits=limits, trans = "log10")
+                                          name="m", breaks = my.breaks, trans = "log10")
     } else {
       eems.colors <- scale_fill_gradientn(colours=default_eems_colors(),
-                                        name="N", limits=limits, trans = "log10")
+                                        name="N", breaks = my.breaks, trans = "log10")
     } 
   }
   
   g <- g + geom_tile(data=df, aes(x=x, y=y, fill=ss), alpha = 1) + 
-    eems.colors + coord_fixed()
+    eems.colors + theme(legend.key.width=unit(0.75, 'cm')) + 
+    theme(legend.key.height=unit(2.25, 'cm')) + 
+    theme(legend.text=element_text(size=15)) + coord_fixed() +
+    theme(legend.title =element_text(size=15)) 
   
   graph <- read_graph(params$mcmcpath, params$longlat)
   
