@@ -115,8 +115,8 @@ plot_pw <- function(df){
   P <- P + theme_classic() + 
     geom_abline(intercept=0) +
     theme(legend.position=0) +
-    ylab("Genetic similarity between demes") +
-    xlab("Fitted ssimilarity between demes")  
+    ylab("genetic (observed) similarity between demes") +
+    xlab("fitted similarity between demes")  
   P
 }
 
@@ -125,16 +125,16 @@ plot_ww <- function(df){
   P <- P + theme_classic() + 
     geom_abline(intercept=0) +
     theme(legend.position=0) +
-    ylab("Genetic similarity within demes") +
-    xlab("Fitted ssimilarity within demes")  
+    ylab("genetic (observed) similarity within demes") +
+    xlab("fitted similarity within demes")  
   P
 }
 
 plot_variogram <- function(df){
   P <- ggplot(df) + geom_point(aes(y=Sobs, x=Dist), alpha=0.6)
   P + theme_classic() + geom_abline(intercept=0) +
-    theme(legend.position=0) + ylab("Genetic similarity") + 
-    xlab("Geographic Distance")
+    theme(legend.position=0) + ylab("genetic similarity") + 
+    xlab("geographic distance")
   P
 }
 
@@ -146,10 +146,27 @@ plot_trace <- function(mcmcpath, outpath){
   pilogl <- data.frame(matrix(pilogl, ncol = 2, byrow = TRUE))
   colnames(pilogl) <- c("prior", "logll")
   
-  ggplot(pilogl, aes(y = logll, x = seq(1, length(logll)))) + geom_line() + xlab("thinned iteration")
-  ggsave(paste0(outpath, "/logll-trace.pdf"), width = 5, height = 3)
+  ggplot(pilogl, aes(y = logll, x = seq(1, length(logll)))) + geom_line() + xlab("iteration (thinned)")
+  ggsave(paste0(outpath, "/logll.pdf"), width = 5, height = 3)
 
-  ggplot(pilogl, aes(y = prior, x = seq(1, length(prior)))) + geom_line() + xlab("thinned iteration")
-  ggsave(paste0(outpath, "/prior-trace.pdf"), width = 5, height = 3)
+  ggplot(pilogl, aes(y = prior, x = seq(1, length(prior)))) + geom_line() + xlab("iteration (thinned)")
+  ggsave(paste0(outpath, "/prior.pdf"), width = 5, height = 3)
   
+}
+
+#' computes scaling factors so results are interpretable in physical quanitites.
+#' @param mcmcpath path to mcmc files
+#' @export
+compute_scaling <- function(mcmcpath){
+  demes = read.table(paste0(mcmcpath, "/demes.txt"))
+  odemes = nrow(read.table(paste0(mcmcpath, "/rdistoDemes.txt")))
+  ndemes = nrow(demes)
+  
+  dx = min(dist(demes)) * 110.57
+  m.scalingfactor = (dx)^2
+  
+  total.area = Polygon(read.table(paste0(mcmcpath, "/outer.txt")))@area * (110.57)^2
+  N.scalingfactor = total.area / ndemes
+  
+  return(list(m.scalingfactor = m.scalingfactor, N.scalingfactor = N.scalingfactor))
 }

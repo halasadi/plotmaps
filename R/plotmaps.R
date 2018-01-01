@@ -86,6 +86,15 @@ add_graph <- function(g, color="black"){
 
 compute_summary_statistic <- function(params, dimns){
   rslts <- compute_rates_each_pixel(params,dimns)
+  
+  l <- compute_scaling(params$mcmcpath)
+  
+  if (params$is.mrates & params$add.countries){
+    rslts <- sqrt(rslts * l$m.scalingfactor)
+  } else if (!params$is.mrates & params$add.countries){
+    rslts <- rslts / l$N.scalingfactor
+  }
+  
   mean.rate = NA
   med.rate = NA
   upper.ci = NA
@@ -190,22 +199,40 @@ add_contour <- function(params, dimns, summary_stats, g){
   a = 10^(mu - 1)
   b = 10^(mu + 1)
   
+  limits = c(min(c(df$ss, a)),
+             max(c(df$ss, b)))
+  
   if (params$plot.sign){
     eems.colors <- scale_fill_gradientn(colours=default_eems_colors(),
                                         name="p(x > mean)", limits = c(0,1))
   } else {
     
-    low  <- min(a, 10^(ceiling(log10(min(df$ss)))))
-    mid  <- 10^(round(log10(mean(df$ss))))
-    high <- max(b, 10^(floor(log10(max(df$ss)))))
-    my.breaks <- c(low, mid, high)
+    #low  <- min(a, 10^(ceiling(log10(min(df$ss)))))
+    #mid  <- 10^(round(mean(log10(df$ss))))
+    #high <- max(b, 10^(floor(log10(max(df$ss)))))
+    #my.breaks <- c(low, mid, high)
     
     if (params$is.mrates) {
+      
+      if (params$add.countries){
+        legend.title <- expression(paste(frac(km, sqrt(gen))))
+      } else{
+        legend.title = "m"
+      }
+      
       eems.colors <- scale_fill_gradientn(colours=default_eems_colors(),
-                                          name="m", breaks = my.breaks, trans = "log10")
+                                          name=legend.title, limits = limits, 
+                                          trans = "log10")
     } else {
+      
+      if (params$add.countries){
+        legend.title <- expression(paste(frac(N, km^2)))
+      } else{
+        legend.title = "N"
+      }
       eems.colors <- scale_fill_gradientn(colours=default_eems_colors(),
-                                        name="N", breaks = my.breaks, trans = "log10")
+                                        name=legend.title, limits = limits, 
+                                        trans = "log10")
     } 
   }
   
@@ -327,7 +354,7 @@ plot_contour <- function(params){
 #' 
 plot_all <- function(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
                      plot.median = FALSE, longlat, mcmcpath, outpath,
-                     width = 10, height = 6){
+                     width = 10, height = 6, ticks = "automatic"){
   
   dir.create(file.path(outpath), showWarnings = FALSE)
   
@@ -344,10 +371,14 @@ plot_all <- function(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
     plot.mean = TRUE
   }
   
+  if (!(ticks %in% c("automatic", "manual"))){
+    stop("value ticks must equal automatic or manual")
+  }
+  
   params <- list(mcmcpath = mcmcpath, outpath = outpath, longlat = longlat,
                  is.mrates = TRUE, plot.mean = plot.mean, plot.median = plot.median,
                  plot.sign = FALSE, width = width, height = height, add.countries = add.countries,
-                 add.graph = add.graph, add.pts = add.pts)
+                 add.graph = add.graph, add.pts = add.pts, ticks = ticks)
   
   
   message('plotting migration surface')
