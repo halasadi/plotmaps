@@ -4,9 +4,12 @@ An R-package for plotting the output of the MAPS software (https://github.com/ha
 
 # Installation
 
+Clone the repository
+
 ```
 install.packages("devtools")
-devtools::install_github("halasadi/plotmaps")
+library(devtools)
+install(path-to-plotmaps/plotmaps)
 ```
 
 # Credits
