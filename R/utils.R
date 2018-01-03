@@ -4,16 +4,22 @@
 #' @return a vector of the default eems colors
 #' @export
 default_eems_colors <- function( ) {
-  ## To reproduce the default eems colors:
-  ## Oranges <- dichromat::colorschemes$BluetoDarkOrange.12[12:7]
-  ## Blues <- dichromat::colorschemes$BrowntoBlue.12[7:12]
-  ## eems.colors <- c(Oranges, "#FBFBFB", Blues)
   eems.colors <- c("#994000", "#CC5800", "#FF8F33", "#FFAD66", "#FFCA99", "#FFE6CC", ## orange sequence
                    "#FBFBFB", ## very slightly off-white
                    "#CCFDFF", "#99F8FF", "#66F0FF", "#33E4FF", "#00AACC", "#007A99") ## blue sequence
   return (eems.colors)
 }
 
+#' @title inferno_colors
+#' @return a vector of colors
+#' @export
+inferno_colors <- function(){
+  inferno.colors <- c("#000004FF", "#140B35FF", "#3A0963FF", "#60136EFF", "#85216BFF", "#A92E5EFF", 
+                      "#FBFBFB", "#FBFBFB", "#FBFBFB", ## very slightly off-white
+                      "#CB4149FF", "#E65D2FFF", "#F78311FF", "#FCAD12FF", "#F5DB4BFF", "#FCFFA4FF")
+  return(inferno.colors)
+  
+}
 
 #' reads the underlying graph
 #' @param path path to mcmc output files
@@ -166,7 +172,7 @@ compute_scaling <- function(mcmcpath){
   m.scalingfactor = (dx)^2
   
   total.area = Polygon(read.table(paste0(mcmcpath, "/outer.txt")))@area * (110.57)^2
-  N.scalingfactor = total.area / ndemes
+  N.scalingfactor = ndemes / total.area
   
   return(list(m.scalingfactor = m.scalingfactor, N.scalingfactor = N.scalingfactor))
 }

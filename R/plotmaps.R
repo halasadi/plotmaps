@@ -92,7 +92,7 @@ compute_summary_statistic <- function(params, dimns){
   if (params$is.mrates & params$add.countries){
     rslts <- sqrt(rslts * l$m.scalingfactor)
   } else if (!params$is.mrates & params$add.countries){
-    rslts <- rslts / l$N.scalingfactor
+    rslts <- rslts * l$N.scalingfactor
   }
   
   mean.rate = NA
@@ -180,61 +180,82 @@ add_pts <- function(g, color="#efefefdd", const_size=T){
   }
 }
 
-
 add_contour <- function(params, dimns, summary_stats, g){
   x <- dimns$marks[,1]
   y <- dimns$marks[,2]
   
   if (params$plot.median){
-    summary_stat = summary_stats$med
+    summary_stat <- summary_stats$med
   } else if (params$plot.mean) {
-    summary_stat = summary_stats$avg
+    summary_stat <- summary_stats$avg
   } else if (params$plot.sign) {
-    summary_stat = summary_stats$upper.ci
+    summary_stat <- summary_stats$upper.ci
   }
   
   df <- data.frame(x=x, y=y, ss=c(summary_stat))
   
-  mu = mean(log10(summary_stat))
-  a = 10^(mu - 1)
-  b = 10^(mu + 1)
-  
-  limits = c(min(c(df$ss, a)),
-             max(c(df$ss, b)))
+  mu <- mean(log10(summary_stat))
+  a <- 10^(mu - 1)
+  b <- 10^(mu + 1)
+  colours <- default_eems_colors()
   
   if (params$plot.sign){
-    eems.colors <- scale_fill_gradientn(colours=default_eems_colors(),
-                                        name="p(x > mean)", limits = c(0,1))
-  } else {
     
-    #low  <- min(a, 10^(ceiling(log10(min(df$ss)))))
-    #mid  <- 10^(round(mean(log10(df$ss))))
-    #high <- max(b, 10^(floor(log10(max(df$ss)))))
-    #my.breaks <- c(low, mid, high)
+    legend.title <- "p(x > mean)"
+    limits <- c(0, 1)
+    trans <- "identity"
+    
+  } else {
+
+    limits <- c(min(c(df$ss, a)),
+               max(c(df$ss, b)))
+    trans <- "log10"
     
     if (params$is.mrates) {
       
       if (params$add.countries){
         legend.title <- expression(paste(frac(km, sqrt(gen))))
       } else{
-        legend.title = "m"
+        legend.title <- "m"
       }
       
-      eems.colors <- scale_fill_gradientn(colours=default_eems_colors(),
-                                          name=legend.title, limits = limits, 
-                                          trans = "log10")
     } else {
       
       if (params$add.countries){
         legend.title <- expression(paste(frac(N, km^2)))
       } else{
-        legend.title = "N"
+        legend.title <- "N"
+        trans <- "identity"
+        
       }
-      eems.colors <- scale_fill_gradientn(colours=default_eems_colors(),
-                                        name=legend.title, limits = limits, 
-                                        trans = "log10")
-    } 
+    }
+    
+    if (params$plot.difference){
+      legend.title <- paste("+log", legend.title)
+      colours <- inferno_colors()
+      df$ss <- log10(df$ss)
+      mu <- mean(df$ss)
+      trans <- "identity"
+      
+      if (!params$is.mrates){
+        # need to offset by log10(2) because MAPS MCMC parameterized on log10 scale q coalescent
+        # and here we plot, N = log(1/2q) => log10(N) = -(log10(2) + log10(eps))
+        # where eps \approx 0
+        df$ss  <- df$ss + log10(2)
+        mu <- mu + log10(2)
+      }
+      
+      a <- mu - 1
+      b <- mu + 1
+      limits <- c(min(c(df$ss, a)),
+                  max(c(df$ss, b)))
+    }
+    
   }
+  
+  eems.colors <- scale_fill_gradientn(colours=colours,
+                                      name=legend.title, limits = limits, 
+                                      trans = trans)
   
   g <- g + geom_tile(data=df, aes(x=x, y=y, fill=ss), alpha = 1) + 
     eems.colors + theme(legend.key.width=unit(0.75, 'cm')) + 
@@ -278,9 +299,9 @@ get_boundary_map <- function(bbox){
 #' 
 make_base <- function(dimns, params, g){
   
-  g <- ggplot() + xlab("long") + ylab("lat")
-  g=g+theme(axis.text.x=element_text(size=12),axis.title.x=element_text(size=12))         
-  g=g + theme_classic()
+  g<- ggplot() + theme_classic() + theme(axis.line = element_blank(), axis.ticks=element_blank(),
+                                axis.text.y=element_blank(), axis.text.x=element_blank(),
+                                axis.title.x=element_blank(), axis.title.y=element_blank())
   
   if (params$add.countries){
     boundary <- dimns$outer
@@ -353,8 +374,8 @@ plot_contour <- function(params){
 #' @export
 #' 
 plot_all <- function(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
-                     plot.median = FALSE, longlat, mcmcpath, outpath,
-                     width = 10, height = 6, ticks = "automatic"){
+                     plot.median = TRUE, longlat, mcmcpath, outpath,
+                     width = 10, height = 6, plot.difference=FALSE){
   
   dir.create(file.path(outpath), showWarnings = FALSE)
   
@@ -370,15 +391,12 @@ plot_all <- function(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
   } else {
     plot.mean = TRUE
   }
-  
-  if (!(ticks %in% c("automatic", "manual"))){
-    stop("value ticks must equal automatic or manual")
-  }
-  
+
   params <- list(mcmcpath = mcmcpath, outpath = outpath, longlat = longlat,
                  is.mrates = TRUE, plot.mean = plot.mean, plot.median = plot.median,
-                 plot.sign = FALSE, width = width, height = height, add.countries = add.countries,
-                 add.graph = add.graph, add.pts = add.pts, ticks = ticks)
+                 plot.sign = FALSE, width = width, height = height, 
+                 add.countries = add.countries, add.graph = add.graph, add.pts = add.pts, 
+                 plot.difference = plot.difference)
   
   
   message('plotting migration surface')
