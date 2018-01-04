@@ -252,7 +252,6 @@ add_contour <- function(params, dimns, summary_stats, g){
     }
     
   }
-  
   eems.colors <- scale_fill_gradientn(colours=colours,
                                       name=legend.title, limits = limits, 
                                       trans = trans)

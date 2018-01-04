@@ -91,7 +91,7 @@ geo_distm <- function(coord, longlat) {
 plot_fit_data <- function(mcmcpath, outpath, longlat) {
   oDemes <- scan(paste0(mcmcpath, '/rdistoDemes.txt'), quiet = TRUE)
   oDemes <- matrix(oDemes, ncol = 3, byrow = TRUE)
-  Sizes <- oDemes[, 3]
+  sizes <- as.matrix(oDemes[, 3])
   nPops <- nrow(oDemes)
   Demes <- seq(nPops)
   Sobs <- as.matrix(read.table(paste0(mcmcpath, '/rdistJtDobsJ.txt'), header = FALSE))
@@ -101,10 +101,14 @@ plot_fit_data <- function(mcmcpath, outpath, longlat) {
   colnames(Shat) <- Demes
   rownames(Shat) <- Demes
   Dist = geo_distm(oDemes[, 1:2], longlat)
-  df.between <- data.frame(Dist=Dist, Sobs = Sobs[upper.tri(Sobs)], Shat = Shat[upper.tri(Shat)],
-        row.names = NULL)
+  Sizes <- sizes %*% t(sizes)
+  diag(Sizes) <- (sizes * (sizes-1))/2
+  df.between <- data.frame(Dist=Dist, Sobs = Sobs[upper.tri(Sobs)], 
+                           Shat = Shat[upper.tri(Shat)], Sizes = Sizes[upper.tri(Sizes)],
+                          row.names = NULL)
         
-  df.within <- data.frame(Sobs.within = diag(Sobs), Shat.within = diag(Shat), row.names=NULL)
+  df.within <- data.frame(Sobs.within = diag(Sobs), Shat.within = diag(Shat), 
+                          Sizes = diag(Sizes), row.names=NULL)
   
   plot_pw(df.between)
   ggsave(filename = paste0(outpath, "/observed_vs_fitted-between.pdf"), width = 4, height = 4)
@@ -117,20 +121,18 @@ plot_fit_data <- function(mcmcpath, outpath, longlat) {
 
 
 plot_pw <- function(df){
-  P <- ggplot(df) + geom_point(aes(y=Sobs, x=Shat), alpha=0.6)  
-  P <- P + theme_classic() + 
+  P <- ggplot(df) + geom_point(aes(y=Sobs, x=Shat, size = Sizes), alpha=0.6)  
+  P <- P + scale_size_continuous(range = c(1, 10)) + theme_classic() + 
     geom_abline(intercept=0) +
-    theme(legend.position=0) +
     ylab("genetic (observed) similarity between demes") +
     xlab("fitted similarity between demes")  
   P
 }
 
 plot_ww <- function(df){
-  P <- ggplot(df) + geom_point(aes(y=Sobs.within, x=Shat.within), alpha=0.6)  
-  P <- P + theme_classic() + 
+  P <- ggplot(df) + geom_point(aes(y=Sobs.within, x=Shat.within, size = Sizes), alpha=0.6)  
+  P <- P  + scale_size_continuous(range = c(1, 10)) + theme_classic() + 
     geom_abline(intercept=0) +
-    theme(legend.position=0) +
     ylab("genetic (observed) similarity within demes") +
     xlab("fitted similarity within demes")  
   P
