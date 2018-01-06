@@ -368,11 +368,21 @@ plot_contour <- function(params){
 }
 
 
-#' plot all
-#' @param params a list containing the plot options
+#' plot_maps maining plotting function
+#' @param add.pts mark demes that are sampled (boolean)
+#' @param add.graph overlay the underlying graph (boolean) 
+#' @param add.countries add country borders (boolean)
+#' @param plot.mean plots the median if TRUE and mean if FALSE (boolean)
+#' @param longlat order of longitude/lattitude in the .coords and .outer file (boolean)
+#' @param mcmcpath path to mcmc output files
+#' @param outpath files will be written to this path
+#' @param width width of the main MAPS plot
+#' @param height height of the main MAPS plot
+#' @param plot.difference set TRUE if user ran MAPS with the olderpath parameter set, this way
+#'                        MAPS only estimates the difference (boolean)
 #' @export
 #' 
-plot_all <- function(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
+plot_maps <- function(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
                      plot.median = TRUE, longlat, mcmcpath, outpath,
                      width = 10, height = 6, plot.difference=FALSE){
   

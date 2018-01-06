@@ -122,7 +122,7 @@ plot_fit_data <- function(mcmcpath, outpath, longlat) {
 
 plot_pw <- function(df){
   P <- ggplot(df) + geom_point(aes(y=Sobs, x=Shat, size = Sizes), alpha=0.6)  
-  P <- P + scale_size_continuous(range = c(1, 10)) + theme_classic() + 
+  P <- P + scale_size_continuous(range = c(1, 10), name = "# pairs") + theme_classic() + 
     geom_abline(intercept=0) +
     ylab("genetic (observed) similarity between demes") +
     xlab("fitted similarity between demes")  
@@ -131,7 +131,7 @@ plot_pw <- function(df){
 
 plot_ww <- function(df){
   P <- ggplot(df) + geom_point(aes(y=Sobs.within, x=Shat.within, size = Sizes), alpha=0.6)  
-  P <- P  + scale_size_continuous(range = c(1, 10)) + theme_classic() + 
+  P <- P  + scale_size_continuous(range = c(1, 10), name = "# pairs") + theme_classic() + 
     geom_abline(intercept=0) +
     ylab("genetic (observed) similarity within demes") +
     xlab("fitted similarity within demes")  
