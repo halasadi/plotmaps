@@ -82,6 +82,7 @@ add_graph <- function(g, color="black"){
   yend <- g$demes[g$edges[,2],2]
   grid <- data.frame(xstart, xend, ystart, yend)
   geom_segment(aes(x=xstart, y=ystart, xend=xend, yend=yend), data=grid, color=color, alpha=0.3)
+  #geom_segment(aes(x=xstart, y=ystart, xend=xend, yend=yend), data=grid, color=color, alpha=1)
 }
 
 compute_summary_statistic <- function(params, dimns){
@@ -175,14 +176,62 @@ add_pts <- function(g, color="#efefefdd", const_size=T){
   df <- data.frame(x=g$demes[ind,1], y=g$demes[ind,2], sizes=sizes)
   if(const_size) {
     pts <- geom_point(aes(x=x, y=y), data=df, color=color, size=1.5)
+    #pts <- geom_point(aes(x=x, y=y), data=df, color="red", size=5)
   } else {
     pts <- geom_point(aes(x=x, y=y, size=sizes), data=df, color=color)
+  }
+}
+
+#' plot_voronoi_samples
+#' @param longlat 
+#' @param mcmcpath
+#' @param outpath
+#' @param is.mrates
+#' @export
+#' 
+plot_voronoi_samples <- function(longlat, mcmcpath, outpath, is.mrates=TRUE, nsamples = 10){
+  
+  dir.create(file.path(outpath), showWarnings = FALSE)
+  files <- c('/mcmcmtiles.txt','/mcmcmrates.txt', 
+             '/mcmcxcoord.txt','/mcmcycoord.txt',
+             '/mcmcqtiles.txt','/mcmcqrates.txt',
+             '/mcmcpilogl.txt', '/rdistoDemes.txt',
+             '/rdistJtDobsJ.txt', '/rdistJtDhatJ.txt')
+  mcmcpath <- check_files_at_path(files, mcmcpath)
+  
+  
+  params <- list(mcmcpath = mcmcpath, outpath = outpath, longlat = longlat,
+                 is.mrates = TRUE)
+  
+  dimns <- read_dimns(params$mcmcpath, params$longlat)
+  x <- dimns$marks[,1]
+  y <- dimns$marks[,2]
+
+  rslts <- compute_rates_each_pixel(params,dimns)
+  niter <- dim(rslts)[1]
+  samples <- sample(1:niter, nsamples)
+  graph <- read_graph(params$mcmcpath, params$longlat)
+  eems.colors <- scale_fill_gradientn(colours=default_eems_colors(), 
+                                      trans = "log10")
+  
+  for (i in 1:length(samples)){
+    df <- data.frame(x=x, y=y, rate=c(rslts[samples[i],,]))
+    ggplot() + theme_classic() + 
+      theme(axis.line = element_blank(), axis.ticks=element_blank(),
+            axis.text.y=element_blank(), axis.text.x=element_blank(),
+            axis.title.x=element_blank(), axis.title.y=element_blank()) +
+      geom_tile(data=df, aes(x=x, y=y, fill=rate), alpha = 1) + eems.colors +
+      add_graph(graph) + add_pts(graph, col = "black")
+    ggsave(paste0(outpath, "/draw-", i, ".pdf"), width = 5, height = 5)
   }
 }
 
 add_contour <- function(params, dimns, summary_stats, g){
   x <- dimns$marks[,1]
   y <- dimns$marks[,2]
+  
+  
+  ## need to clean up this code..
   
   if (params$plot.median){
     summary_stat <- summary_stats$med
@@ -225,8 +274,6 @@ add_contour <- function(params, dimns, summary_stats, g){
         legend.title <- expression(paste(frac(N, km^2)))
       } else{
         legend.title <- "N"
-        trans <- "identity"
-        
       }
     }
     
@@ -252,9 +299,18 @@ add_contour <- function(params, dimns, summary_stats, g){
     }
     
   }
-  eems.colors <- scale_fill_gradientn(colours=colours,
-                                      name=legend.title, limits = limits, 
-                                      trans = trans)
+  
+ 
+  if (!params$set.range & !params$plot.sign & !params$plot.difference){
+    eems.colors <- scale_fill_gradientn(colours=colours,
+                                        name=legend.title, 
+                                        trans = trans)
+  } else{
+    eems.colors <- scale_fill_gradientn(colours=colours,
+                                        name=legend.title, limits = limits, 
+                                        trans = trans)
+  }
+
   
   g <- g + geom_tile(data=df, aes(x=x, y=y, fill=ss), alpha = 1) + 
     eems.colors + theme(legend.key.width=unit(0.75, 'cm')) + 
@@ -380,11 +436,12 @@ plot_contour <- function(params){
 #' @param height height of the main MAPS plot
 #' @param plot.difference set TRUE if user ran MAPS with the olderpath parameter set, this way
 #'                        MAPS only estimates the difference (boolean)
+#' @param set.range TRUE if minimum variability is set as +- 1 (in log10 scale) from the mean (boolean)
 #' @export
 #' 
 plot_maps <- function(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
                      plot.median = TRUE, longlat, mcmcpath, outpath,
-                     width = 10, height = 6, plot.difference=FALSE){
+                     width = 10, height = 6, plot.difference=FALSE, set.range = TRUE){
   
   dir.create(file.path(outpath), showWarnings = FALSE)
   
@@ -405,7 +462,7 @@ plot_maps <- function(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
                  is.mrates = TRUE, plot.mean = plot.mean, plot.median = plot.median,
                  plot.sign = FALSE, width = width, height = height, 
                  add.countries = add.countries, add.graph = add.graph, add.pts = add.pts, 
-                 plot.difference = plot.difference)
+                 plot.difference = plot.difference, set.range = set.range)
   
   
   message('plotting migration surface')
