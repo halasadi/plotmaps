@@ -183,10 +183,10 @@ add_pts <- function(g, color="#efefefdd", const_size=T){
 }
 
 #' plot_voronoi_samples
-#' @param longlat 
-#' @param mcmcpath
-#' @param outpath
-#' @param is.mrates
+#' @param longlat Add description of longlat here.
+#' @param mcmcpath Add description of mcmcpath here.
+#' @param outpath Add description of outpath here.
+#' @param is.mrates Add description of is.mrates here.
 #' @export
 #' 
 plot_voronoi_samples <- function(longlat, mcmcpath, outpath, is.mrates=TRUE, nsamples = 10){
