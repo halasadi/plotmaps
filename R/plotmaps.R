@@ -183,13 +183,18 @@ add_pts <- function(g, color="#efefefdd", const_size=T){
 }
 
 #' plot_voronoi_samples
-#' @param longlat 
-#' @param mcmcpath
-#' @param outpath
-#' @param is.mrates
+#' @param is.mrates plot mvoronoi (TRUE) or qvoronoi (FALSE)
+#' @param add.countries add country borders (boolean)
+#' @param longlat order of longitude/lattitude in the .coords and .outer file (boolean)
+#' @param mcmcpath path to mcmc output files
+#' @param outpath files will be written to this path
+#' @param width width of the main MAPS plot
+#' @param height height of the main MAPS plot
+#' @param nsamples number of samples to plot from posterior
 #' @export
 #' 
-plot_voronoi_samples <- function(longlat, mcmcpath, outpath, is.mrates=TRUE, nsamples = 10){
+plot_voronoi_samples <- function(longlat, mcmcpath, outpath, is.mrates=TRUE, 
+                                 nsamples = 10, add.countries = TRUE, width = 5, height = 5){
   
   dir.create(file.path(outpath), showWarnings = FALSE)
   files <- c('/mcmcmtiles.txt','/mcmcmrates.txt', 
@@ -201,7 +206,7 @@ plot_voronoi_samples <- function(longlat, mcmcpath, outpath, is.mrates=TRUE, nsa
   
   
   params <- list(mcmcpath = mcmcpath, outpath = outpath, longlat = longlat,
-                 is.mrates = TRUE)
+                 is.mrates = is.mrates, add.countries = add.countries)
   
   dimns <- read_dimns(params$mcmcpath, params$longlat)
   x <- dimns$marks[,1]
@@ -216,22 +221,116 @@ plot_voronoi_samples <- function(longlat, mcmcpath, outpath, is.mrates=TRUE, nsa
   
   for (i in 1:length(samples)){
     df <- data.frame(x=x, y=y, rate=c(rslts[samples[i],,]))
-    ggplot() + theme_classic() + 
+    g<- ggplot() + theme_classic() + 
       theme(axis.line = element_blank(), axis.ticks=element_blank(),
             axis.text.y=element_blank(), axis.text.x=element_blank(),
             axis.title.x=element_blank(), axis.title.y=element_blank()) +
       geom_tile(data=df, aes(x=x, y=y, fill=rate), alpha = 1) + eems.colors +
       add_graph(graph) + add_pts(graph, col = "black")
-    ggsave(paste0(outpath, "/draw-", i, ".pdf"), width = 5, height = 5)
+    if (params$add.countries){
+      g <- add_map(dimns, params, g)
+    }
+    
+    prefix <- 'm'
+    if (!is.mrates){
+      prefix <- 'q'
+    }
+    
+    g
+    ggsave(paste0(outpath, "/", prefix, "draw-", i, ".pdf"), width = width, height = height)
   }
+}
+
+get_title <- function(params){
+  if (params$plot.sign){
+    legend.title <- "p(x > mean)"
+    return(legend.title)
+  }
+  
+  if (params$is.mrates) {
+    if (params$add.countries){
+      legend.title <- expression(paste(frac(km, sqrt(gen))))
+    } else{
+      legend.title <- "m"
+    }
+  } 
+  
+  if (!params$is.mrates){
+    if (params$add.countries){
+      legend.title <- expression(paste(frac(N, km^2)))
+    } else{
+      legend.title <- "N"
+    }
+  }
+  
+  if (params$plot.difference){
+    legend.title <- paste("+log", legend.title)
+  }
+  
+  return(legend.title)
+}
+
+
+get_limits <- function(df, params){
+  if (params$plot.sign){
+    limits <- c(0, 1)
+    return(limits)
+  }
+  
+  if (!params$plot.difference){
+    mu <- mean(log10(df$ss))
+    a <- 10^(mu - 1)
+    b <- 10^(mu + 1)
+    limits <- c(min(c(df$ss, a)),
+                max(c(df$ss, b)))
+  }
+  
+  if (params$plot.difference){
+    ss <- log10(df$ss)
+    mu <- mean(ss)
+    
+    if (!params$is.mrates){
+      # need to offset by log10(2) because MAPS MCMC parameterized on log10 scale q coalescent
+      # and here we plot, N = log(1/2q) => log10(N) = -(log10(2) + log10(eps))
+      # where eps \approx 0
+      df$ss  <- ss + log10(2)
+      mu <- mu + log10(2)
+    }
+    
+    a <- mu - 1
+    b <- mu + 1
+    limits <- c(min(c(ss, a)),
+               max(c(ss, b)))
+  }
+  
+  return(limits)
+}
+ 
+get_trans <- function(params){
+  if (params$plot.sign | params$plot.difference){
+    return("identity")
+  }
+  return("log10")  
+}
+
+get_color_gradient <- function(plot.difference, legend.title, limits, trans){
+
+  if (plot.difference){
+    color.gradient <- scale_fill_gradientn(colours=inferno_colors(),
+                                        name=legend.title, 
+                                        trans = trans)
+  } else{
+    color.gradient <- scale_fill_gradientn(colours=default_eems_colors(),
+                                        name=legend.title, limits = limits, 
+                                        trans = trans)
+  }
+  
+  return(color.gradient)
 }
 
 add_contour <- function(params, dimns, summary_stats, g){
   x <- dimns$marks[,1]
   y <- dimns$marks[,2]
-  
-  
-  ## need to clean up this code..
   
   if (params$plot.median){
     summary_stat <- summary_stats$med
@@ -243,77 +342,17 @@ add_contour <- function(params, dimns, summary_stats, g){
   
   df <- data.frame(x=x, y=y, ss=c(summary_stat))
   
-  mu <- mean(log10(summary_stat))
-  a <- 10^(mu - 1)
-  b <- 10^(mu + 1)
-  colours <- default_eems_colors()
+  legend.title <- get_title(params)
+  trans <- get_trans(params)
+  limits <- get_limits(df, params)
+  color.gradient <- get_color_gradient(params$plot.difference, legend.title, limits, trans)
   
-  if (params$plot.sign){
-    
-    legend.title <- "p(x > mean)"
-    limits <- c(0, 1)
-    trans <- "identity"
-    
-  } else {
-
-    limits <- c(min(c(df$ss, a)),
-               max(c(df$ss, b)))
-    trans <- "log10"
-    
-    if (params$is.mrates) {
-      
-      if (params$add.countries){
-        legend.title <- expression(paste(frac(km, sqrt(gen))))
-      } else{
-        legend.title <- "m"
-      }
-      
-    } else {
-      
-      if (params$add.countries){
-        legend.title <- expression(paste(frac(N, km^2)))
-      } else{
-        legend.title <- "N"
-      }
-    }
-    
-    if (params$plot.difference){
-      legend.title <- paste("+log", legend.title)
-      colours <- inferno_colors()
-      df$ss <- log10(df$ss)
-      mu <- mean(df$ss)
-      trans <- "identity"
-      
-      if (!params$is.mrates){
-        # need to offset by log10(2) because MAPS MCMC parameterized on log10 scale q coalescent
-        # and here we plot, N = log(1/2q) => log10(N) = -(log10(2) + log10(eps))
-        # where eps \approx 0
-        df$ss  <- df$ss + log10(2)
-        mu <- mu + log10(2)
-      }
-      
-      a <- mu - 1
-      b <- mu + 1
-      limits <- c(min(c(df$ss, a)),
-                  max(c(df$ss, b)))
-    }
-    
+  if (params$plot.difference){
+    df$ss <- log10(df$ss)
   }
-  
- 
-  if (!params$set.range & !params$plot.sign & !params$plot.difference){
-    eems.colors <- scale_fill_gradientn(colours=colours,
-                                        name=legend.title, 
-                                        trans = trans)
-  } else{
-    eems.colors <- scale_fill_gradientn(colours=colours,
-                                        name=legend.title, limits = limits, 
-                                        trans = trans)
-  }
-
   
   g <- g + geom_tile(data=df, aes(x=x, y=y, fill=ss), alpha = 1) + 
-    eems.colors + theme(legend.key.width=unit(0.75, 'cm')) + 
+    color.gradient + theme(legend.key.width=unit(0.75, 'cm')) + 
     theme(legend.key.height=unit(2.25, 'cm')) + 
     theme(legend.text=element_text(size=15)) + coord_fixed() +
     theme(legend.title =element_text(size=15)) 
