@@ -169,7 +169,7 @@ add_contours <- function(params,dimns, g) {
   return(add_contour(params, dimns, summary_stats, g))
 }
 
-add_pts <- function(g, color="#efefefdd", const_size=T){
+add_pts <- function(g, color="#efefefdd", const_size=F){
   tbl <- table(g$ipmap)
   ind <- as.numeric(names(tbl))
   sizes <- as.vector(tbl)
@@ -178,7 +178,7 @@ add_pts <- function(g, color="#efefefdd", const_size=T){
     pts <- geom_point(aes(x=x, y=y), data=df, color=color, size=1.5)
     #pts <- geom_point(aes(x=x, y=y), data=df, color="red", size=5)
   } else {
-    pts <- geom_point(aes(x=x, y=y, size=sizes), data=df, color=color)
+    pts <- geom_point(aes(x=x, y=y, size=sizes), data=df, color=color, show.legend=FALSE)
   }
 }
 
@@ -225,7 +225,7 @@ plot_voronoi_samples <- function(longlat, mcmcpath, outpath, is.mrates=TRUE,
       theme(axis.line = element_blank(), axis.ticks=element_blank(),
             axis.text.y=element_blank(), axis.text.x=element_blank(),
             axis.title.x=element_blank(), axis.title.y=element_blank()) +
-      geom_tile(data=df, aes(x=x, y=y, fill=rate), alpha = 1) + eems.colors +
+      geom_raster(data=df, aes(x=x, y=y, fill=rate), alpha = 1) + eems.colors +
       add_graph(graph) + add_pts(graph, col = "black")
     if (params$add.countries){
       g <- add_map(dimns, params, g)
@@ -293,7 +293,7 @@ get_limits <- function(df, params){
       # need to offset by log10(2) because MAPS MCMC parameterized on log10 scale q coalescent
       # and here we plot, N = log(1/2q) => log10(N) = -(log10(2) + log10(eps))
       # where eps \approx 0
-      df$ss  <- ss + log10(2)
+      ss  <- ss + log10(2)
       mu <- mu + log10(2)
     }
     
@@ -313,9 +313,9 @@ get_trans <- function(params){
   return("log10")  
 }
 
-get_color_gradient <- function(plot.difference, legend.title, limits, trans){
+get_color_gradient <- function(params, legend.title, limits, trans){
 
-  if (plot.difference){
+  if (!params$set.range & !params$plot.sign){
     color.gradient <- scale_fill_gradientn(colours=inferno_colors(),
                                         name=legend.title, 
                                         trans = trans)
@@ -345,13 +345,19 @@ add_contour <- function(params, dimns, summary_stats, g){
   legend.title <- get_title(params)
   trans <- get_trans(params)
   limits <- get_limits(df, params)
-  color.gradient <- get_color_gradient(params$plot.difference, legend.title, limits, trans)
+  color.gradient <- get_color_gradient(params, legend.title, limits, trans)
   
   if (params$plot.difference){
     df$ss <- log10(df$ss)
+    if (!params$is.mrates){
+      # need to offset by log10(2) because MAPS MCMC parameterized on log10 scale q coalescent
+      # and here we plot, N = log(1/2q) => log10(N) = -(log10(2) + log10(eps))
+      # where eps \approx 0
+      df$ss  <- df$ss + log10(2)
+    }
   }
   
-  g <- g + geom_tile(data=df, aes(x=x, y=y, fill=ss), alpha = 1) + 
+  g <- g + geom_raster(data=df, aes(x=x, y=y, fill=ss), alpha = 1) + 
     color.gradient + theme(legend.key.width=unit(0.75, 'cm')) + 
     theme(legend.key.height=unit(2.25, 'cm')) + 
     theme(legend.text=element_text(size=15)) + coord_fixed() +

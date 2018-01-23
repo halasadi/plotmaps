@@ -152,13 +152,14 @@ plot_variogram <- function(df){
 plot_trace <- function(mcmcpath, outpath){
   pilogl <- scan(paste0(mcmcpath, '/mcmcpilogl.txt'), quiet = TRUE)
   pilogl <- data.frame(matrix(pilogl, ncol = 2, byrow = TRUE))
-  colnames(pilogl) <- c("prior", "logll")
+  pilogl[,1] <- pilogl[,1] + pilogl[,2]
+  colnames(pilogl) <- c("posterior", "logll")
   
   ggplot(pilogl, aes(y = logll, x = seq(1, length(logll)))) + geom_line() + xlab("iteration (thinned)")
   ggsave(paste0(outpath, "/logll.pdf"), width = 5, height = 3)
 
-  ggplot(pilogl, aes(y = prior, x = seq(1, length(prior)))) + geom_line() + xlab("iteration (thinned)")
-  ggsave(paste0(outpath, "/prior.pdf"), width = 5, height = 3)
+  ggplot(pilogl, aes(y = posterior, x = seq(1, length(posterior)))) + geom_line() + xlab("iteration (thinned)")
+  ggsave(paste0(outpath, "/posterior.pdf"), width = 5, height = 3)
   
 }
 

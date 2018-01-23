@@ -5,16 +5,24 @@
 \title{plot_voronoi_samples}
 \usage{
 plot_voronoi_samples(longlat, mcmcpath, outpath, is.mrates = TRUE,
-  nsamples = 10)
+  nsamples = 10, add.countries = TRUE, width = 5, height = 5)
 }
 \arguments{
-\item{longlat}{Add description of longlat here.}
+\item{longlat}{order of longitude/lattitude in the .coords and .outer file (boolean)}
 
-\item{mcmcpath}{Add description of mcmcpath here.}
+\item{mcmcpath}{path to mcmc output files}
 
-\item{outpath}{Add description of outpath here.}
+\item{outpath}{files will be written to this path}
 
-\item{is.mrates}{Add description of is.mrates here.}
+\item{is.mrates}{plot mvoronoi (TRUE) or qvoronoi (FALSE)}
+
+\item{nsamples}{number of samples to plot from posterior}
+
+\item{add.countries}{add country borders (boolean)}
+
+\item{width}{width of the main MAPS plot}
+
+\item{height}{height of the main MAPS plot}
 }
 \description{
 plot_voronoi_samples
