@@ -2,13 +2,15 @@
 % Please edit documentation in R/utils.R
 \name{plot_trace}
 \alias{plot_trace}
-\title{plots the log-likelihood and prior as a function of MCMC iteration (thinned)}
+\title{plots the log-likelihood and log-posterior as a function of MCMC iteration (thinned)}
 \usage{
 plot_trace(mcmcpath, outpath)
 }
 \arguments{
-\item{params}{list of parameter options}
+\item{mcmcpath}{path to output mcmc files}
+
+\item{outpath}{where to save the file}
 }
 \description{
-plots the log-likelihood and prior as a function of MCMC iteration (thinned)
+plots the log-likelihood and log-posterior as a function of MCMC iteration (thinned)
 }

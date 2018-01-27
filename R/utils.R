@@ -1,4 +1,5 @@
 #' @import sp
+#' @importFrom gridExtra arrangeGrob
 
 #' @title default_eems_colors
 #' @return a vector of the default eems colors
@@ -53,7 +54,7 @@ read_graph <- function(path, longlat) {
   return(list(ipmap = ipmap, demes = demes, edges = edges, alpha = alpha, sizes = sizes, outer = outer))
 }
 
-#'  checks if files exist
+#' checks if files exist
 #' @param files a list of files to check if they exist
 #' @export
 check_files_at_path <- function(files, paths=".", strict=F){
@@ -146,8 +147,9 @@ plot_variogram <- function(df){
   P
 }
 
-#' plots the log-likelihood and prior as a function of MCMC iteration (thinned)
-#' @param params list of parameter options
+#' plots the log-likelihood and log-posterior as a function of MCMC iteration (thinned)
+#' @param mcmcpath path to output mcmc files
+#' @param outpath where to save the file
 #' @export
 plot_trace <- function(mcmcpath, outpath){
   pilogl <- scan(paste0(mcmcpath, '/mcmcpilogl.txt'), quiet = TRUE)
@@ -155,12 +157,75 @@ plot_trace <- function(mcmcpath, outpath){
   pilogl[,1] <- pilogl[,1] + pilogl[,2]
   colnames(pilogl) <- c("posterior", "logll")
   
-  ggplot(pilogl, aes(y = logll, x = seq(1, length(logll)))) + geom_line() + xlab("iteration (thinned)")
-  ggsave(paste0(outpath, "/logll.pdf"), width = 5, height = 3)
-
-  ggplot(pilogl, aes(y = posterior, x = seq(1, length(posterior)))) + geom_line() + xlab("iteration (thinned)")
-  ggsave(paste0(outpath, "/posterior.pdf"), width = 5, height = 3)
+  g1 <- ggplot(pilogl, aes(y = logll, x = seq(1, length(logll)))) + geom_line() + xlab("iteration (thinned)")
+  g2 <- ggplot(pilogl, aes(y = posterior, x = seq(1, length(posterior)))) + geom_line() + xlab("iteration (thinned)")
+  ggsave(paste0(outpath, "/logll_trace.pdf"), arrangeGrob(g1, g2))
   
+}
+
+
+compute_e_summaries <- function(mcmcpath, outpath, type = "m"){
+  mcmchyper <- read.table(paste0(mcmcpath, '/mcmc', type, 'hyper.txt'))
+  colnames(mcmchyper) <- c("mu", "omega")
+  rates <- scan(paste(mcmcpath,'/mcmc', type, 'rates.txt',sep=''),what=numeric(),quiet=TRUE)
+  tiles <- read.table(paste0(mcmcpath, '/mcmc', type, 'tiles.txt'))$V1
+  niter <- length(tiles)
+  
+  e_mean <- rep(0, niter)
+  e_sd   <- rep(0, niter)
+  count <- 0
+  for (i in 1:niter) {
+    now.tiles <- tiles[i]
+    now.rates <- rates[(count+1):(count+now.tiles)]
+    e.rates <- (log10(now.rates) - mcmchyper$mu[i]) / 10^(mcmchyper$omega[i])
+    e_mean[i] <- mean(e.rates)
+    e_sd[i]   <- sd(e.rates)
+  }
+  
+  return(list(e_mean = e_mean, e_sd = e_sd))
+  
+}
+
+
+
+#' plots the parameters of MAPS as function of iteration (thinned)
+#' @param mcmcpath path to output mcmc files
+#' @param outpath where to save the file
+#' @export
+plot_parameter_trace <- function(mcmcpath, outpath) {
+  mcmcmhyper <- read.table(paste0(mcmcpath, '/mcmcmhyper.txt'))
+  colnames(mcmcmhyper) <- c("mu_m", "omega_m")
+
+  mcmcqhyper <- read.table(paste0(mcmcpath, '/mcmcqhyper.txt'))
+  colnames(mcmcqhyper) <- c("mu_q", "omega_q")
+  
+  mcmcqtiles <- read.table(paste0(mcmcpath, '/mcmcqtiles.txt'))
+  colnames(mcmcqtiles) <- c("nqtiles")
+  mcmcmtiles <- read.table(paste0(mcmcpath, '/mcmcmtiles.txt'))
+  colnames(mcmcmtiles) <- c("nmtiles")
+  
+  df <- data.frame(mcmcmhyper, mcmcqhyper, mcmcmtiles, mcmcqtiles, iter = 1:nrow(mcmcmhyper))
+  
+  g1 <- ggplot(df, aes(y = mu_m, x = iter)) + geom_line()    + xlab("iteration (thinned)")
+  g2 <- ggplot(df, aes(y = mu_q, x = iter)) + geom_line()    + xlab("iteration (thinned)")
+  g3 <- ggplot(df, aes(y = omega_m, x = iter)) + geom_line() + xlab("iteration (thinned)") + ylab("log10(omega_m)")
+  g4 <- ggplot(df, aes(y = omega_q, x = iter)) + geom_line() + xlab("iteration (thinned)") + ylab("log10(omega_q)")
+  g5 <- ggplot(df, aes(y = nmtiles, x = iter)) + geom_line() + xlab("iteration (thinned)")
+  g6 <- ggplot(df, aes(y = nqtiles, x = iter)) + geom_line() + xlab("iteration (thinned)")
+  
+  
+  m_summary <- compute_e_summaries(mcmcpath, outpath, "m")
+  q_summary <- compute_e_summaries(mcmcpath, outpath, "q")
+  df <- data.frame(em_mean = m_summary$e_mean, em_sd = m_summary$e_sd,
+                   eq_mean = q_summary$e_mean, eq_sd = q_summary$e_sd,
+                   iter = 1:length(m_summary$e_mean))
+  g7 <- ggplot(df, aes(y = em_mean, x = iter)) + geom_line() + xlab("iteration (thinned)") + geom_hline(yintercept = 0, colour = "red")
+  g8 <- ggplot(df, aes(y = eq_mean, x = iter)) + geom_line() + xlab("iteration (thinned)") + geom_hline(yintercept = 0, colour = "red")
+  g9 <- ggplot(df, aes(y = em_sd, x = iter))   + geom_line() + xlab("iteration (thinned)") + geom_hline(yintercept = 1, colour = "red")
+  g10 <- ggplot(df, aes(y = eq_sd, x = iter))  + geom_line() + xlab("iteration (thinned)") + geom_hline(yintercept = 1, colour = "red")
+  
+  
+  ggsave(paste0(outpath, "/parameters_trace.pdf"), arrangeGrob(g1, g2, g3, g4, g5, g6, g7, g8, g9, g10, ncol=2))
 }
 
 #' computes scaling factors so results are interpretable in physical quanitites.

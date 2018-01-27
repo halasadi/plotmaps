@@ -287,14 +287,13 @@ get_limits <- function(df, params){
   
   if (params$plot.difference){
     ss <- log10(df$ss)
-    mu <- mean(ss)
+    #mu <- mean(log10(df$ss))
+    mu <- 0
     
     if (!params$is.mrates){
       # need to offset by log10(2) because MAPS MCMC parameterized on log10 scale q coalescent
-      # and here we plot, N = log(1/2q) => log10(N) = -(log10(2) + log10(eps))
-      # where eps \approx 0
+      # and here we plot, N = log10(1/2q) => log10(N) = -(log10(2) + log10(q)) 
       ss  <- ss + log10(2)
-      mu <- mu + log10(2)
     }
     
     a <- mu - 1
@@ -347,7 +346,7 @@ add_contour <- function(params, dimns, summary_stats, g){
   limits <- get_limits(df, params)
   color.gradient <- get_color_gradient(params, legend.title, limits, trans)
   
-  if (params$plot.difference){
+  if (params$plot.difference & !params$plot.sign){
     df$ss <- log10(df$ss)
     if (!params$is.mrates){
       # need to offset by log10(2) because MAPS MCMC parameterized on log10 scale q coalescent
@@ -537,5 +536,6 @@ plot_maps <- function(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
   
   message('plotting diagonostics of model fit and MCMC convergence')
   plot_trace(mcmcpath, outpath) 
+  plot_parameter_trace(mcmcpath, outpath)
   plot_fit_data(mcmcpath, outpath, params$longlat)
 }
