@@ -7,8 +7,14 @@ An R-package for plotting the output of the [MAPS software](https://github.com/h
 
 # Installation
 
+
+In the shell, type
 ```
 git clone https://github.com/halasadi/plotmaps.git
+```
+
+In an R console, type
+```
 install.packages("devtools")
 library(devtools)
 install(path-to-plotmaps/plotmaps)
