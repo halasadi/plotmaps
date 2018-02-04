@@ -8,6 +8,6 @@ Maintainer: <halasadi89@gmail.com>
 Description: plots stuff
 License: GPL (>= 2)
 Imports: Rcpp (>= 0.12.14), RcppEigen (>= 0.3.3.3.1),
-	 ggplot2, maps, mapproj, dplyr, sp, gridExtra
+	 ggplot2, maps, mapproj, dplyr, sp, gridExtra, SDMTools
 LinkingTo: Rcpp, RcppEigen
 RoxygenNote: 6.0.1

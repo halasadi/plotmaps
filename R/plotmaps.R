@@ -2,6 +2,7 @@
 #' @import maps
 #' @import ggplot2
 #' @import dplyr
+#' @import SDMTools
 
 ## constructs the dimensions of the main plot as a matrix representing a grid of pixels
 read_dimns <- function(path, longlat) {
@@ -46,10 +47,14 @@ read_dimns <- function(path, longlat) {
   xmrks <- seq(from = xlim[1], to = xlim[2], length = nxmrks)
   ymrks <- seq(from = ylim[1], to = ylim[2], length = nymrks)
   marks <- cbind(rep(xmrks, times = nymrks), rep(ymrks, each = nxmrks))
+  
+  pip <- pnt.in.poly(marks, outer)[,3]
+  filter <- pip == 1
+  
   return(list(nxmrks = nxmrks, xmrks = xmrks, xlim = xlim, xspan = diff(xlim),
               nymrks = nymrks, ymrks = ymrks, ylim = ylim, yspan = diff(ylim),
               marks = marks, nmrks = c(nxmrks, nymrks),
-              outer = outer))
+              outer = outer, filter = filter))
 }
 
 ## reads each voronoi tile
@@ -339,7 +344,8 @@ add_contour <- function(params, dimns, summary_stats, g){
     summary_stat <- summary_stats$upper.ci
   }
   
-  df <- data.frame(x=x, y=y, ss=c(summary_stat))
+  df <- data.frame(x=x, y=y, ss=c(summary_stat), filter = dimns$filter)
+  df <- df[df$filter,]
   
   legend.title <- get_title(params)
   trans <- get_trans(params)
