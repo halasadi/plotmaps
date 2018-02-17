@@ -2,7 +2,7 @@
 #' @import maps
 #' @import ggplot2
 #' @import dplyr
-#' @import SDMTools
+#' @import sp
 
 ## constructs the dimensions of the main plot as a matrix representing a grid of pixels
 read_dimns <- function(path, longlat) {
@@ -48,7 +48,7 @@ read_dimns <- function(path, longlat) {
   ymrks <- seq(from = ylim[1], to = ylim[2], length = nymrks)
   marks <- cbind(rep(xmrks, times = nymrks), rep(ymrks, each = nxmrks))
   
-  pip <- pnt.in.poly(marks, outer)[,3]
+  pip <- point.in.polygon(point.x=marks[,1], point.y=marks[,2], pol.x = outer[,1], pol.y = outer[,2])
   filter <- pip == 1
   
   return(list(nxmrks = nxmrks, xmrks = xmrks, xlim = xlim, xspan = diff(xlim),
@@ -64,12 +64,22 @@ read_voronoi <- function(params) {
     tiles <- scan(paste(params$mcmcpath,'/mcmcmtiles.txt',sep=''),what=numeric(),quiet=TRUE)
     xseed <- scan(paste(params$mcmcpath,'/mcmcxcoord.txt',sep=''),what=numeric(),quiet=TRUE)
     yseed <- scan(paste(params$mcmcpath,'/mcmcycoord.txt',sep=''),what=numeric(),quiet=TRUE)
+    
+    if (params$plot.difference){
+      rates <- log10(rates)
+    }
+    
   } else {
     rates <- scan(paste(params$mcmcpath,'/mcmcqrates.txt',sep=''),what=numeric(),quiet=TRUE)
     tiles <- scan(paste(params$mcmcpath,'/mcmcqtiles.txt',sep=''),what=numeric(),quiet=TRUE)
     xseed <- scan(paste(params$mcmcpath,'/mcmcwcoord.txt',sep=''),what=numeric(),quiet=TRUE)
     yseed <- scan(paste(params$mcmcpath,'/mcmczcoord.txt',sep=''),what=numeric(),quiet=TRUE)
-    rates <- 1/(2*rates) ## N = 1/2q
+    
+    if (params$plot.difference){
+      rates <- -log10(rates)
+    } else{
+      rates <- 1 / (2 * rates) ## N = 1/2q
+    }
   }
   if (!params$longlat) {
     tempi <- xseed
@@ -95,9 +105,9 @@ compute_summary_statistic <- function(params, dimns){
   
   l <- compute_scaling(params$mcmcpath)
   
-  if (params$is.mrates & params$add.countries){
+  if (params$is.mrates & params$add.countries & !params$plot.difference){
     rslts <- sqrt(rslts * l$m.scalingfactor)
-  } else if (!params$is.mrates & params$add.countries){
+  } else if (!params$is.mrates & params$add.countries & !params$plot.difference){
     rslts <- rslts * l$N.scalingfactor
   }
   
@@ -252,26 +262,29 @@ get_title <- function(params){
     return(legend.title)
   }
   
+  legend.title <- ""
+  if (params$plot.difference){
+    legend.title <- paste("+log", legend.title)
+  }
+  
+  
   if (params$is.mrates) {
     if (params$add.countries){
-      legend.title <- expression(paste(frac(km, sqrt(gen))))
+      legend.title <- bquote(paste(.(legend.title), frac(km, sqrt(gen))))
     } else{
-      legend.title <- "m"
+      legend.title <- paste(legend.title, "m")
     }
   } 
   
   if (!params$is.mrates){
     if (params$add.countries){
-      legend.title <- expression(paste(frac(N, km^2)))
+      legend.title <- bquote(paste(.(legend.title), frac(N, km^2)))
     } else{
-      legend.title <- "N"
+      legend.title <- paste(legend.title, "N")
     }
   }
   
-  if (params$plot.difference){
-    legend.title <- paste("+log", legend.title)
-  }
-  
+ 
   return(legend.title)
 }
 
@@ -286,25 +299,20 @@ get_limits <- function(df, params){
     mu <- mean(log10(df$ss))
     a <- 10^(mu - 1)
     b <- 10^(mu + 1)
+    #a <- 10^(mu - 0.5)
+    #b <- 10^(mu + 0.5)
     limits <- c(min(c(df$ss, a)),
                 max(c(df$ss, b)))
   }
   
   if (params$plot.difference){
-    ss <- log10(df$ss)
-    #mu <- mean(log10(df$ss))
     mu <- 0
-    
-    if (!params$is.mrates){
-      # need to offset by log10(2) because MAPS MCMC parameterized on log10 scale q coalescent
-      # and here we plot, N = log10(1/2q) => log10(N) = -(log10(2) + log10(q)) 
-      ss  <- ss + log10(2)
-    }
-    
+    #a <- mu - 0.5
+    #b <- mu + 0.5
     a <- mu - 1
     b <- mu + 1
-    limits <- c(min(c(ss, a)),
-               max(c(ss, b)))
+    limits <- c(min(c(df$ss, a)),
+               max(c(df$ss, b)))
   }
   
   return(limits)
@@ -351,16 +359,6 @@ add_contour <- function(params, dimns, summary_stats, g){
   trans <- get_trans(params)
   limits <- get_limits(df, params)
   color.gradient <- get_color_gradient(params, legend.title, limits, trans)
-  
-  if (params$plot.difference & !params$plot.sign){
-    df$ss <- log10(df$ss)
-    if (!params$is.mrates){
-      # need to offset by log10(2) because MAPS MCMC parameterized on log10 scale q coalescent
-      # and here we plot, N = log(1/2q) => log10(N) = -(log10(2) + log10(eps))
-      # where eps \approx 0
-      df$ss  <- df$ss + log10(2)
-    }
-  }
   
   g <- g + geom_raster(data=df, aes(x=x, y=y, fill=ss), alpha = 1) + 
     color.gradient + theme(legend.key.width=unit(0.75, 'cm')) + 
@@ -435,7 +433,9 @@ add_map <- function(dimns, params, g){
             bottom=min(boundary[,2]), top=max(boundary[,2]))
   bbox['top'] <- pmin(bbox['top'], 83)
   m_boundary <- get_boundary_map(bbox)
-  g = g + geom_path(data=m_boundary, aes(x=long, y=lat, group=group),  color='black', size=0.5, 
+  #g = g + geom_path(data=m_boundary, aes(x=long, y=lat, group=group),  color='black', size=0.5, 
+  #                  alpha = 1)
+  g = g + geom_path(data=m_boundary, aes(x=long, y=lat, group=group),  color='black', size=1, 
                     alpha = 1)
   return(g)
 }
