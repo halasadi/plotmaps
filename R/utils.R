@@ -90,13 +90,19 @@ geo_distm <- function(coord, longlat) {
 #' @param params list of parameter options
 #' @export
 plot_fit_data <- function(mcmcpath, outpath, longlat) {
-  oDemes <- scan(paste0(mcmcpath, '/rdistoDemes.txt'), quiet = TRUE)
+  oDemes <- scan(paste0(mcmcpath[1], '/rdistoDemes.txt'), quiet = TRUE)
   oDemes <- matrix(oDemes, ncol = 3, byrow = TRUE)
   sizes <- as.matrix(oDemes[, 3])
   nPops <- nrow(oDemes)
   Demes <- seq(nPops)
-  Sobs <- as.matrix(read.table(paste0(mcmcpath, '/rdistJtDobsJ.txt'), header = FALSE))
-  Shat <- as.matrix(read.table(paste0(mcmcpath, '/rdistJtDhatJ.txt'), header = FALSE))
+  Sobs <- as.matrix(read.table(paste0(mcmcpath[1], '/rdistJtDobsJ.txt'), header = FALSE))
+  
+  Shat = matrix(nrow = nrow(Sobs), ncol = ncol(Sobs), 0)
+  for (path in mcmcpath){
+    Shat <- Shat + as.matrix(read.table(paste0(path, '/rdistJtDhatJ.txt'), header = FALSE))
+  }
+  Shat <- Shat / length(mcmcpath)
+  
   colnames(Sobs) <- Demes
   rownames(Sobs) <- Demes
   colnames(Shat) <- Demes
@@ -152,18 +158,28 @@ plot_variogram <- function(df){
 #' @param outpath where to save the file
 #' @export
 plot_trace <- function(mcmcpath, outpath){
-  pilogl <- scan(paste0(mcmcpath, '/mcmcpilogl.txt'), quiet = TRUE)
-  pilogl <- data.frame(matrix(pilogl, ncol = 2, byrow = TRUE))
-  pilogl[,1] <- pilogl[,1] + pilogl[,2]
-  colnames(pilogl) <- c("posterior", "logll")
+  logll <- c()
+  for (path in mcmcpath){
+    pilogl <- scan(paste0(path, '/mcmcpilogl.txt'), quiet = TRUE)
+    pilogl <- data.frame(matrix(pilogl, ncol = 2, byrow = TRUE))
+    logll      <- cbind(logll, pilogl[,2])
+  }
   
-  g1 <- ggplot(pilogl, aes(y = logll, x = seq(1, length(logll)))) + geom_line() + xlab("iteration (thinned)")
-  g2 <- ggplot(pilogl, aes(y = posterior, x = seq(1, length(posterior)))) + geom_line() + xlab("iteration (thinned)")
+  colnames(logll)   <- paste0("run", 1:length(mcmcpath))
+  itrs    <- 1:dim(logll)[1]
+  logll   <- as.data.frame(cbind(logll, itrs)) %>% gather(variable, value, -itrs)
+  
+  
+  g1 <- ggplot(logll, aes(x=itrs, y=value, color=variable)) + geom_line(size=0.5, alpha = 0.5) +
+    xlab("iteration (thinned)") + ylab("logll")
+  g2 <- ggplot(logll, aes(x=itrs, y=value, color=variable)) + geom_line() + facet_wrap(~variable) + 
+    xlab("iteration (thinned)") + ylab("logll")
   ggsave(paste0(outpath, "/logll_trace.pdf"), arrangeGrob(g1, g2))
   
 }
 
 
+## not used currently
 compute_e_summaries <- function(mcmcpath, outpath, type = "m"){
   mcmchyper <- read.table(paste0(mcmcpath, '/mcmc', type, 'hyper.txt'))
   colnames(mcmchyper) <- c("mu", "omega")
@@ -193,39 +209,64 @@ compute_e_summaries <- function(mcmcpath, outpath, type = "m"){
 #' @param outpath where to save the file
 #' @export
 plot_parameter_trace <- function(mcmcpath, outpath) {
-  mcmcmhyper <- read.table(paste0(mcmcpath, '/mcmcmhyper.txt'))
-  colnames(mcmcmhyper) <- c("mu_m", "omega_m")
-
-  mcmcqhyper <- read.table(paste0(mcmcpath, '/mcmcqhyper.txt'))
-  colnames(mcmcqhyper) <- c("mu_q", "omega_q")
   
-  mcmcqtiles <- read.table(paste0(mcmcpath, '/mcmcqtiles.txt'))
-  colnames(mcmcqtiles) <- c("nqtiles")
-  mcmcmtiles <- read.table(paste0(mcmcpath, '/mcmcmtiles.txt'))
-  colnames(mcmcmtiles) <- c("nmtiles")
+  logll <- c()
+  for (path in mcmcpath){
+    pilogl <- scan(paste0(path, '/mcmcpilogl.txt'), quiet = TRUE)
+    pilogl <- data.frame(matrix(pilogl, ncol = 2, byrow = TRUE))
+    logll      <- cbind(logll, pilogl[,2])
+  }
   
-  df <- data.frame(mcmcmhyper, mcmcqhyper, mcmcmtiles, mcmcqtiles, iter = 1:nrow(mcmcmhyper))
+  colnames(logll)   <- paste0("run", 1:length(mcmcpath))
+  itrs    <- 1:dim(logll)[1]
+  logll   <- as.data.frame(cbind(logll, itrs)) %>% gather(variable, value, -itrs)
   
-  g1 <- ggplot(df, aes(y = mu_m, x = iter)) + geom_line()    + xlab("iteration (thinned)")
-  g2 <- ggplot(df, aes(y = mu_q, x = iter)) + geom_line()    + xlab("iteration (thinned)")
-  g3 <- ggplot(df, aes(y = omega_m, x = iter)) + geom_line() + xlab("iteration (thinned)") + ylab("log10(omega_m)")
-  g4 <- ggplot(df, aes(y = omega_q, x = iter)) + geom_line() + xlab("iteration (thinned)") + ylab("log10(omega_q)")
-  g5 <- ggplot(df, aes(y = nmtiles, x = iter)) + geom_line() + xlab("iteration (thinned)")
-  g6 <- ggplot(df, aes(y = nqtiles, x = iter)) + geom_line() + xlab("iteration (thinned)")
+  mu_m <- c()
+  omega_m <- c()
+  mu_q <- c()
+  omega_q <- c()
+  qtiles <- c()
+  mtiles <- c()
+  for (path in mcmcpath){
+    mcmcmhyper <- read.table(paste0(path, '/mcmcmhyper.txt'))
+    mcmcqhyper <- read.table(paste0(path, '/mcmcqhyper.txt'))
+    mcmcqtiles <- read.table(paste0(path, '/mcmcqtiles.txt'))
+    mcmcmtiles <- read.table(paste0(path, '/mcmcmtiles.txt'))
+    
+    mu_m       <- cbind(mu_m, mcmcmhyper[,1])
+    omega_m    <- cbind(omega_m, mcmcmhyper[,2])
+    mu_q      <- cbind(mu_q, mcmcqhyper[,1])
+    omega_q   <- cbind(omega_q, mcmcqhyper[,2])
+    mtiles     <- cbind(mtiles, mcmcmtiles[,1])
+    qtiles     <- cbind(qtiles, mcmcqtiles[,1])
+    
+  }
+  
+  colnames(omega_m) <- paste0("run", 1:length(mcmcpath))
+  colnames(omega_q) <- paste0("run", 1:length(mcmcpath))
+  colnames(mu_m)    <- paste0("run", 1:length(mcmcpath))
+  colnames(mu_q)    <- paste0("run", 1:length(mcmcpath))
+  colnames(mtiles)  <- paste0("run", 1:length(mcmcpath))
+  colnames(qtiles)  <- paste0("run", 1:length(mcmcpath))
+  itrs <- 1:dim(mcmcmtiles)[1]
+  
+  omega_m <- as.data.frame(cbind(omega_m, itrs)) %>% gather(variable, value, -itrs)
+  omega_q <- as.data.frame(cbind(omega_q, itrs)) %>% gather(variable, value, -itrs)
+  mu_m    <- as.data.frame(cbind(mu_m, itrs)) %>% gather(variable, value, -itrs)
+  mu_q    <- as.data.frame(cbind(mu_q, itrs)) %>% gather(variable, value, -itrs)
+  logll   <- as.data.frame(cbind(logll, itrs)) %>% gather(variable, value, -itrs)
+  mtiles  <- as.data.frame(cbind(mtiles, itrs)) %>% gather(variable, value, -itrs)
+  qtiles  <- as.data.frame(cbind(qtiles, itrs)) %>% gather(variable, value, -itrs)
   
   
-  m_summary <- compute_e_summaries(mcmcpath, outpath, "m")
-  q_summary <- compute_e_summaries(mcmcpath, outpath, "q")
-  df <- data.frame(em_mean = m_summary$e_mean, em_sd = m_summary$e_sd,
-                   eq_mean = q_summary$e_mean, eq_sd = q_summary$e_sd,
-                   iter = 1:length(m_summary$e_mean))
-  g7 <- ggplot(df, aes(y = em_mean, x = iter)) + geom_line() + xlab("iteration (thinned)") + geom_hline(yintercept = 0, colour = "red")
-  g8 <- ggplot(df, aes(y = eq_mean, x = iter)) + geom_line() + xlab("iteration (thinned)") + geom_hline(yintercept = 0, colour = "red")
-  g9 <- ggplot(df, aes(y = em_sd, x = iter))   + geom_line() + xlab("iteration (thinned)") + geom_hline(yintercept = 1, colour = "red")
-  g10 <- ggplot(df, aes(y = eq_sd, x = iter))  + geom_line() + xlab("iteration (thinned)") + geom_hline(yintercept = 1, colour = "red")
+  g1 <- ggplot(omega_m, aes(x=value, color=variable)) + geom_freqpoly(bins=30) + xlab("log10(omega_m)") + theme(legend.position="none")
+  g2 <- ggplot(omega_q, aes(x=value, color=variable)) + geom_freqpoly(bins=30) + xlab("log10(omega_q)") + theme(legend.position="none")
+  g3 <- ggplot(mu_m, aes(x=value, color=variable)) + geom_freqpoly(bins=30)    + xlab("mu_m") + theme(legend.position="none")
+  g4 <- ggplot(mu_q, aes(x=value, color=variable)) + geom_freqpoly(bins=30)    + xlab("mu_q") + theme(legend.position="none")
+  g5 <- ggplot(mtiles, aes(x=value, color=variable)) + geom_freqpoly(bins=30)  + xlab("mtiles") + theme(legend.position="none")
+  g6 <- ggplot(qtiles, aes(x=value, color=variable)) + geom_freqpoly(bins=30)  + xlab("qtiles") + theme(legend.position="none")
   
-  
-  ggsave(paste0(outpath, "/parameters_trace.pdf"), arrangeGrob(g1, g2, g3, g4, g5, g6, g7, g8, g9, g10, ncol=2))
+  ggsave(paste0(outpath, "/parameters_trace.pdf"), arrangeGrob(g1, g2, g3, g4, g5, g6, ncol=2))
 }
 
 #' computes scaling factors so results are interpretable in physical quanitites.

@@ -3,6 +3,7 @@
 #' @import ggplot2
 #' @import dplyr
 #' @import sp
+#' @import abind
 
 ## constructs the dimensions of the main plot as a matrix representing a grid of pixels
 read_dimns <- function(path, longlat) {
@@ -58,22 +59,22 @@ read_dimns <- function(path, longlat) {
 }
 
 ## reads each voronoi tile
-read_voronoi <- function(params) {
+read_voronoi <- function(params, path) {
   if (params$is.mrates) {
-    rates <- scan(paste(params$mcmcpath,'/mcmcmrates.txt',sep=''),what=numeric(),quiet=TRUE)
-    tiles <- scan(paste(params$mcmcpath,'/mcmcmtiles.txt',sep=''),what=numeric(),quiet=TRUE)
-    xseed <- scan(paste(params$mcmcpath,'/mcmcxcoord.txt',sep=''),what=numeric(),quiet=TRUE)
-    yseed <- scan(paste(params$mcmcpath,'/mcmcycoord.txt',sep=''),what=numeric(),quiet=TRUE)
+    rates <- scan(paste(path,'/mcmcmrates.txt',sep=''),what=numeric(),quiet=TRUE)
+    tiles <- scan(paste(path,'/mcmcmtiles.txt',sep=''),what=numeric(),quiet=TRUE)
+    xseed <- scan(paste(path,'/mcmcxcoord.txt',sep=''),what=numeric(),quiet=TRUE)
+    yseed <- scan(paste(path,'/mcmcycoord.txt',sep=''),what=numeric(),quiet=TRUE)
     
     if (params$plot.difference){
       rates <- log10(rates)
     }
     
   } else {
-    rates <- scan(paste(params$mcmcpath,'/mcmcqrates.txt',sep=''),what=numeric(),quiet=TRUE)
-    tiles <- scan(paste(params$mcmcpath,'/mcmcqtiles.txt',sep=''),what=numeric(),quiet=TRUE)
-    xseed <- scan(paste(params$mcmcpath,'/mcmcwcoord.txt',sep=''),what=numeric(),quiet=TRUE)
-    yseed <- scan(paste(params$mcmcpath,'/mcmczcoord.txt',sep=''),what=numeric(),quiet=TRUE)
+    rates <- scan(paste(path,'/mcmcqrates.txt',sep=''),what=numeric(),quiet=TRUE)
+    tiles <- scan(paste(path,'/mcmcqtiles.txt',sep=''),what=numeric(),quiet=TRUE)
+    xseed <- scan(paste(path,'/mcmcwcoord.txt',sep=''),what=numeric(),quiet=TRUE)
+    yseed <- scan(paste(path,'/mcmczcoord.txt',sep=''),what=numeric(),quiet=TRUE)
     
     if (params$plot.difference){
       rates <- -log10(rates)
@@ -101,9 +102,10 @@ add_graph <- function(g, color="black"){
 }
 
 compute_summary_statistic <- function(params, dimns){
-  rslts <- compute_rates_each_pixel(params,dimns)
   
-  l <- compute_scaling(params$mcmcpath)
+  rslts <- compute_rates_each_pixel(params,dimns)
+
+  l <- compute_scaling(params$mcmcpath[1])
   
   if (params$is.mrates & params$add.countries & !params$plot.difference){
     rslts <- sqrt(rslts * l$m.scalingfactor)
@@ -134,28 +136,38 @@ compute_summary_statistic <- function(params, dimns){
   return(list(avg=mean.rate, med = med.rate, upper.ci=upper.ci))
 }
 
-compute_rates_each_pixel <- function(params,dimns) {
-  voronoi <- read_voronoi(params)
-  rates <- voronoi$rates
-  tiles <- voronoi$tiles
-  xseed <- voronoi$xseed
-  yseed <- voronoi$yseed
-  vals <- matrix(0,dimns$nxmrks,dimns$nymrks)
-  niter <- length(tiles)
-  count <- 0
-  means  <- matrix(0, dimns$nxmrks, dimns$nymrks)
-  pixelated.tiles <- array(dim = c(niter, dimns$nxmrks, dimns$nymrks))
-  for (i in 1:niter) {
-    now.tiles <- tiles[i]
-    now.rates <- rates[(count+1):(count+now.tiles)]
-    now.xseed <- xseed[(count+1):(count+now.tiles)]
-    now.yseed <- yseed[(count+1):(count+now.tiles)]
-    now.seeds <- cbind(now.xseed,now.yseed)
-    rslts <- compute_contour_vals(dimns$marks, now.rates, now.seeds)
-    pixelated.tiles[i,,] <- matrix(rslts,  nrow = dimns$nxmrks, ncol = dimns$nymrks)
-    count <- count + now.tiles
-  }
-  return(pixelated.tiles)
+compute_rates_each_pixel <- function(params, dimns) {
+  for (p in 1:length(params$mcmcpath)){
+    path = params$mcmcpath[p]
+    voronoi <- read_voronoi(params, path)
+    rates <- voronoi$rates
+    tiles <- voronoi$tiles
+    xseed <- voronoi$xseed
+    yseed <- voronoi$yseed
+    vals  <- matrix(0, dimns$nxmrks, dimns$nymrks)
+    niter <- length(tiles)
+    count <- 0
+    pixelated.tiles <- array(dim = c(niter, dimns$nxmrks, dimns$nymrks))
+    for (i in 1:niter) {
+      now.tiles <- tiles[i]
+      now.rates <- rates[(count+1):(count+now.tiles)]
+      now.xseed <- xseed[(count+1):(count+now.tiles)]
+      now.yseed <- yseed[(count+1):(count+now.tiles)]
+      now.seeds <- cbind(now.xseed,now.yseed)
+      rslts <- compute_contour_vals(dimns$marks, now.rates, now.seeds)
+      pixelated.tiles[i,,] <- matrix(rslts,  nrow = dimns$nxmrks, ncol = dimns$nymrks)
+      count <- count + now.tiles
+    }
+
+    if (p == 1){
+      ret <- pixelated.tiles
+    } else{
+      ret <- abind(ret, pixelated.tiles, along = 1)
+    }
+    
+  } # end loop over paths
+
+  return(ret)
 }
 
 #' @title adds contours
@@ -171,12 +183,9 @@ compute_rates_each_pixel <- function(params,dimns) {
 add_contours <- function(params,dimns, g) {
 
   n_runs <- length(params$mcmcpath)
-  if (n_runs==0) { stop(paste0(params$mcmcpath, ' is not a valid mcmcpath')) }
-  if (n_runs>1)  {  stop(paste0(params$mcmcpath, ' the MAPS plotting package plots only one run')) }
-  
-  
+
   summary_stats <- compute_summary_statistic(params, dimns)
-  
+
   if (sum(c(params$plot.median, params$plot.mean, params$plot.sign)) != 1){
     stop("you must plot only one of the following: mean, median, or probability of positive sign")
   }
@@ -223,14 +232,14 @@ plot_voronoi_samples <- function(longlat, mcmcpath, outpath, is.mrates=TRUE,
   params <- list(mcmcpath = mcmcpath, outpath = outpath, longlat = longlat,
                  is.mrates = is.mrates, add.countries = add.countries)
   
-  dimns <- read_dimns(params$mcmcpath, params$longlat)
+  dimns <- read_dimns(params$mcmcpath[1], params$longlat)
   x <- dimns$marks[,1]
   y <- dimns$marks[,2]
 
   rslts <- compute_rates_each_pixel(params,dimns)
   niter <- dim(rslts)[1]
   samples <- sample(1:niter, nsamples)
-  graph <- read_graph(params$mcmcpath, params$longlat)
+  graph <- read_graph(params$mcmcpath[1], params$longlat)
   eems.colors <- scale_fill_gradientn(colours=default_eems_colors(), 
                                       trans = "log10")
   
@@ -366,7 +375,7 @@ add_contour <- function(params, dimns, summary_stats, g){
     theme(legend.text=element_text(size=15)) + coord_fixed() +
     theme(legend.title =element_text(size=15)) 
   
-  graph <- read_graph(params$mcmcpath, params$longlat)
+  graph <- read_graph(params$mcmcpath[1], params$longlat)
   
   if (params$add.graph){
     g <- g + add_graph(graph)
@@ -445,7 +454,7 @@ add_map <- function(dimns, params, g){
 #' @export
 #' 
 plot_contour <- function(params){
-  dimns <- read_dimns(params$mcmcpath, params$longlat)
+  dimns <- read_dimns(params$mcmcpath[1], params$longlat)
   
   
   g <- make_base(dimns, params) 
