@@ -208,7 +208,7 @@ compute_e_summaries <- function(mcmcpath, outpath, type = "m"){
 #' @param mcmcpath path to output mcmc files
 #' @param outpath where to save the file
 #' @export
-plot_parameter_trace <- function(mcmcpath, outpath) {
+plot_parameter_distribution <- function(mcmcpath, outpath) {
   
   logll <- c()
   for (path in mcmcpath){
@@ -266,7 +266,7 @@ plot_parameter_trace <- function(mcmcpath, outpath) {
   g5 <- ggplot(mtiles, aes(x=value, color=variable)) + geom_freqpoly(bins=30)  + xlab("mtiles") + theme(legend.position="none")
   g6 <- ggplot(qtiles, aes(x=value, color=variable)) + geom_freqpoly(bins=30)  + xlab("qtiles") + theme(legend.position="none")
   
-  ggsave(paste0(outpath, "/parameters_trace.pdf"), arrangeGrob(g1, g2, g3, g4, g5, g6, ncol=2))
+  ggsave(paste0(outpath, "/parameters_distribution.pdf"), arrangeGrob(g1, g2, g3, g4, g5, g6, ncol=2))
 }
 
 #' computes scaling factors so results are interpretable in physical quanitites.

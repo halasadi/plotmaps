@@ -4,6 +4,7 @@
 #' @import dplyr
 #' @import sp
 #' @import abind
+#' @import tidyr
 
 ## constructs the dimensions of the main plot as a matrix representing a grid of pixels
 read_dimns <- function(path, longlat) {
@@ -67,6 +68,8 @@ read_voronoi <- function(params, path) {
     yseed <- scan(paste(path,'/mcmcycoord.txt',sep=''),what=numeric(),quiet=TRUE)
     
     if (params$plot.difference){
+      # this is the same as visualizing 
+      # the log(ratio) of the dispersal distances
       rates <- log10(rates)
     }
     
@@ -77,6 +80,8 @@ read_voronoi <- function(params, path) {
     yseed <- scan(paste(path,'/mcmczcoord.txt',sep=''),what=numeric(),quiet=TRUE)
     
     if (params$plot.difference){
+      # this is the same as visualizing 
+      # the log(ratio) of the effecitive densities
       rates <- -log10(rates)
     } else{
       rates <- 1 / (2 * rates) ## N = 1/2q
@@ -267,34 +272,55 @@ plot_voronoi_samples <- function(longlat, mcmcpath, outpath, is.mrates=TRUE,
 
 get_title <- function(params){
   if (params$plot.sign){
-    legend.title <- "p(x > mean)"
-    return(legend.title)
+    return(expression(p(x>mu)))
   }
   
-  legend.title <- ""
-  if (params$plot.difference){
-    legend.title <- paste("+log", legend.title)
-  }
+  m          <- expression(m)
+  N          <- expression(N)
+  diff.m     <- bquote(paste(log10, bgroup("(", frac(m^"'", m),  ")")))
+  diff.N     <- bquote(paste(log10, bgroup("(", frac(N^"'", N),  ")")))
+  sigma      <- expression(sigma)
+  D          <- expression('D'[e])
+  diff.sigma <- bquote(paste(log10, bgroup("(", frac(sigma^"'", sigma),  ")")))
+  diff.D     <- bquote(paste(log10, bgroup("(", frac('D'[e]^"'", 'D'[e]),  ")")))
   
   
-  if (params$is.mrates) {
+  if (!params$plot.difference){
+    
     if (params$add.countries){
-      legend.title <- bquote(paste(.(legend.title), frac(km, sqrt(gen))))
+      
+      if (params$is.mrates){
+        return(sigma)
+      } else{
+        return(D)
+      }
     } else{
-      legend.title <- paste(legend.title, "m")
+      if (params$is.mrates){
+        return(m)
+      } else{
+        return(N)
+      }
+    
     }
-  } 
-  
-  if (!params$is.mrates){
+  } else{
+    
     if (params$add.countries){
-      legend.title <- bquote(paste(.(legend.title), frac(N, km^2)))
+      
+      if (params$is.mrates){
+        return(diff.sigma)
+      } else{
+        return(diff.D)
+      }
     } else{
-      legend.title <- paste(legend.title, "N")
+      if (params$is.mrates){
+        return(diff.m)
+      } else{
+        return(diff.N)
+      }
     }
+    
   }
-  
- 
-  return(legend.title)
+
 }
 
 
@@ -551,6 +577,6 @@ plot_maps <- function(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
   
   message('plotting diagonostics of model fit and MCMC convergence')
   plot_trace(mcmcpath, outpath) 
-  plot_parameter_trace(mcmcpath, outpath)
+  plot_parameter_distribution(mcmcpath, outpath)
   plot_fit_data(mcmcpath, outpath, params$longlat)
 }
