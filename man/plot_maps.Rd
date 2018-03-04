@@ -5,8 +5,8 @@
 \title{plot_maps maining plotting function}
 \usage{
 plot_maps(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
-  plot.median = TRUE, longlat, mcmcpath, outpath, width = 10, height = 6,
-  plot.difference = FALSE, set.range = TRUE)
+  plot.mean = TRUE, longlat, mcmcpath, outpath, width = 10, height = 6,
+  plot.difference = FALSE, set.range = FALSE, alpha = 0.05)
 }
 \arguments{
 \item{add.pts}{mark demes that are sampled (boolean)}
@@ -14,6 +14,8 @@ plot_maps(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
 \item{add.graph}{overlay the underlying graph (boolean)}
 
 \item{add.countries}{add country borders (boolean)}
+
+\item{plot.mean}{plots the mean if TRUE and mean if FALSE (boolean)}
 
 \item{longlat}{order of longitude/lattitude in the .coords and .outer file (boolean)}
 
@@ -30,7 +32,7 @@ MAPS only estimates the difference (boolean)}
 
 \item{set.range}{TRUE if minimum variability is set as +- 1 (in log10 scale) from the mean (boolean)}
 
-\item{plot.mean}{plots the median if TRUE and mean if FALSE (boolean)}
+\item{alpha}{the significance level, such that rates exceeding that level will be shown in the sign plot}
 }
 \description{
 plot_maps maining plotting function

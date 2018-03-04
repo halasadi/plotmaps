@@ -191,10 +191,6 @@ add_contours <- function(params,dimns, g) {
 
   summary_stats <- compute_summary_statistic(params, dimns)
 
-  if (sum(c(params$plot.median, params$plot.mean, params$plot.sign)) != 1){
-    stop("you must plot only one of the following: mean, median, or probability of positive sign")
-  }
-  
   return(add_contour(params, dimns, summary_stats, g))
 }
 
@@ -271,9 +267,6 @@ plot_voronoi_samples <- function(longlat, mcmcpath, outpath, is.mrates=TRUE,
 }
 
 get_title <- function(params){
-  if (params$plot.sign){
-    return(expression(p(x>mu)))
-  }
   
   m          <- expression(m)
   N          <- expression(N)
@@ -325,10 +318,6 @@ get_title <- function(params){
 
 
 get_limits <- function(df, params){
-  if (params$plot.sign){
-    limits <- c(0, 1)
-    return(limits)
-  }
   
   if (!params$plot.difference){
     mu <- mean(log10(df$ss))
@@ -354,7 +343,7 @@ get_limits <- function(df, params){
 }
  
 get_trans <- function(params){
-  if (params$plot.sign | params$plot.difference){
+  if (params$plot.difference){
     return("identity")
   }
   return("log10")  
@@ -362,14 +351,14 @@ get_trans <- function(params){
 
 get_color_gradient <- function(params, legend.title, limits, trans){
 
-  if (!params$set.range & !params$plot.sign){
+  if (params$set.range){
     color.gradient <- scale_fill_gradientn(colours=inferno_colors(),
                                         name=legend.title, 
-                                        trans = trans)
+                                        trans = trans, na.value = "lightgray") 
   } else{
     color.gradient <- scale_fill_gradientn(colours=default_eems_colors(),
                                         name=legend.title, limits = limits, 
-                                        trans = trans)
+                                        trans = trans, na.value = "lightgray")
   }
   
   return(color.gradient)
@@ -379,21 +368,25 @@ add_contour <- function(params, dimns, summary_stats, g){
   x <- dimns$marks[,1]
   y <- dimns$marks[,2]
   
-  if (params$plot.median){
-    summary_stat <- summary_stats$med
-  } else if (params$plot.mean) {
+  if (params$plot.mean){
     summary_stat <- summary_stats$avg
-  } else if (params$plot.sign) {
-    summary_stat <- summary_stats$upper.ci
+  } else{
+    summary_stat <- summary_stats$med
   }
-  
+
   df <- data.frame(x=x, y=y, ss=c(summary_stat), filter = dimns$filter)
   df <- df[df$filter,]
   
-  legend.title <- get_title(params)
-  trans <- get_trans(params)
-  limits <- get_limits(df, params)
+  legend.title   <- get_title(params)
+  trans          <- get_trans(params)
+  limits         <- get_limits(df, params)
   color.gradient <- get_color_gradient(params, legend.title, limits, trans)
+
+  if (params$plot.sign){
+    ci  <- data.frame(x=x, y=y, ss=c(summary_stats$upper.ci), filter = dimns$filter)
+    ci  <- ci[ci$filter,]
+    df$ss[ci$ss > params$alpha  & ci$ss < (1-params$alpha)] <- NA
+  }
   
   g <- g + geom_raster(data=df, aes(x=x, y=y, fill=ss), alpha = 1) + 
     color.gradient + theme(legend.key.width=unit(0.75, 'cm')) + 
@@ -498,11 +491,17 @@ plot_contour <- function(params){
   }
   
   if (params$plot.mean){
-    filename <- paste0(filename, "mean.pdf")
-  } else if (params$plot.median) {
-    filename <- paste0(filename, "median.pdf")
-  } else{
-    filename <- paste0(filename, "signplot.pdf")
+    if (params$plot.sign){
+      filename <- paste0(filename, "mean-sign.pdf")
+    } else{
+      filename <- paste0(filename, "mean.pdf")
+    }
+  } else {
+    if (params$plot.sign){
+      filename <- paste0(filename, "median-sign.pdf")
+    } else{
+      filename <- paste0(filename, "median.pdf")
+    }
   }
 
   ggsave(filename, width = params$width, height = params$height)
@@ -513,7 +512,7 @@ plot_contour <- function(params){
 #' @param add.pts mark demes that are sampled (boolean)
 #' @param add.graph overlay the underlying graph (boolean) 
 #' @param add.countries add country borders (boolean)
-#' @param plot.mean plots the median if TRUE and mean if FALSE (boolean)
+#' @param plot.mean plots the mean if TRUE and mean if FALSE (boolean)
 #' @param longlat order of longitude/lattitude in the .coords and .outer file (boolean)
 #' @param mcmcpath path to mcmc output files
 #' @param outpath files will be written to this path
@@ -522,11 +521,13 @@ plot_contour <- function(params){
 #' @param plot.difference set TRUE if user ran MAPS with the olderpath parameter set, this way
 #'                        MAPS only estimates the difference (boolean)
 #' @param set.range TRUE if minimum variability is set as +- 1 (in log10 scale) from the mean (boolean)
+#' @param alpha the significance level, such that rates exceeding that level will be shown in the sign plot
 #' @export
 #' 
 plot_maps <- function(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
-                     plot.median = TRUE, longlat, mcmcpath, outpath,
-                     width = 10, height = 6, plot.difference=FALSE, set.range = TRUE){
+                     plot.mean = TRUE, longlat, mcmcpath, outpath,
+                     width = 10, height = 6, plot.difference=FALSE, set.range = FALSE,
+                     alpha = 0.05){
   
   dir.create(file.path(outpath), showWarnings = FALSE)
   
@@ -537,17 +538,17 @@ plot_maps <- function(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
              '/rdistJtDobsJ.txt', '/rdistJtDhatJ.txt')
   mcmcpath <- check_files_at_path(files, mcmcpath)
   
-  if (plot.median){
-    plot.mean= FALSE
+  if (plot.mean){
+    plot.median= FALSE
   } else {
-    plot.mean = TRUE
+    plot.median = TRUE
   }
 
   params <- list(mcmcpath = mcmcpath, outpath = outpath, longlat = longlat,
                  is.mrates = TRUE, plot.mean = plot.mean, plot.median = plot.median,
                  plot.sign = FALSE, width = width, height = height, 
                  add.countries = add.countries, add.graph = add.graph, add.pts = add.pts, 
-                 plot.difference = plot.difference, set.range = set.range)
+                 plot.difference = plot.difference, set.range = set.range, alpha = alpha)
   
   
   message('plotting migration surface')
@@ -557,22 +558,16 @@ plot_maps <- function(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
   message('plotting migration surface sign plot')
   params$is.mrates = TRUE
   params$plot.sign = TRUE
-  params$plot.mean = FALSE
-  params$plot.median = FALSE
   plot_contour(params)
   
   message('plotting population-size surface')
   params$is.mrates = FALSE
   params$plot.sign = FALSE
-  params$plot.mean = plot.mean
-  params$plot.median = plot.median
   plot_contour(params)
   
   message('plotting population-size surface sign plot')
   params$is.mrates = FALSE
   params$plot.sign = TRUE
-  params$plot.mean = FALSE
-  params$plot.median = FALSE
   plot_contour(params)
   
   message('plotting diagonostics of model fit and MCMC convergence')
