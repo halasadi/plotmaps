@@ -134,8 +134,9 @@ compute_summary_statistic <- function(params, dimns){
 
   if (params$plot.sign) {
     # measure of credibility of a barrier
-    base.rate <- mean(med.rate)
-    upper.ci  <- apply(rslts, c(2,3), function(x){ mean(x > base.rate)})
+    #base.rate <- mean(med.rate)
+    #upper.ci  <- apply(rslts, c(2,3), function(x){ mean(x > base.rate)})
+    upper.ci  <- apply(rslts, c(2,3), function(x){ mean(x > 0)})
   }
   
   return(list(avg=mean.rate, med = med.rate, upper.ci=upper.ci))
@@ -323,16 +324,12 @@ get_limits <- function(df, params){
     mu <- mean(log10(df$ss))
     a <- 10^(mu - 1)
     b <- 10^(mu + 1)
-    #a <- 10^(mu - 0.5)
-    #b <- 10^(mu + 0.5)
     limits <- c(min(c(df$ss, a)),
                 max(c(df$ss, b)))
   }
   
   if (params$plot.difference){
     mu <- 0
-    #a <- mu - 0.5
-    #b <- mu + 0.5
     a <- mu - 1
     b <- mu + 1
     limits <- c(min(c(df$ss, a)),
