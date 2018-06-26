@@ -6,7 +6,8 @@
 \usage{
 plot_maps(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
   plot.mean = TRUE, longlat, mcmcpath, outpath, width = 10, height = 6,
-  plot.difference = FALSE, set.range = FALSE, alpha = 0.05)
+  plot.difference = FALSE, set.range = FALSE, alpha = 0.1,
+  m.limits = NA, N.limits = NA)
 }
 \arguments{
 \item{add.pts}{mark demes that are sampled (boolean)}
@@ -30,9 +31,13 @@ plot_maps(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
 \item{plot.difference}{set TRUE if user ran MAPS with the olderpath parameter set, this way
 MAPS only estimates the difference (boolean)}
 
-\item{set.range}{TRUE if minimum variability is set as +- 1 (in log10 scale) from the mean (boolean)}
+\item{set.range}{TRUE if range is set as custom}
 
 \item{alpha}{the significance level, such that rates exceeding that level will be shown in the sign plot}
+
+\item{m.limits}{limits of the migration surface plot (used if set.range==TRUE)}
+
+\item{N.limits}{limits of the population-size surface plot (used if set.range==TRUE)}
 }
 \description{
 plot_maps maining plotting function

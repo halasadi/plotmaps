@@ -68,8 +68,6 @@ read_voronoi <- function(params, path) {
     yseed <- scan(paste(path,'/mcmcycoord.txt',sep=''),what=numeric(),quiet=TRUE)
     
     if (params$plot.difference){
-      # this is the same as visualizing 
-      # the log(ratio) of the dispersal distances
       rates <- log10(rates)
     }
     
@@ -80,12 +78,11 @@ read_voronoi <- function(params, path) {
     yseed <- scan(paste(path,'/mcmczcoord.txt',sep=''),what=numeric(),quiet=TRUE)
     
     if (params$plot.difference){
-      # this is the same as visualizing 
-      # the log(ratio) of the effecitive densities
       rates <- -log10(rates)
     } else{
-      rates <- 1 / (2 * rates) ## N = 1/2q
+      rates <- 1 / (2 * rates)
     }
+
   }
   if (!params$longlat) {
     tempi <- xseed
@@ -102,8 +99,8 @@ add_graph <- function(g, color="black"){
   ystart <- g$demes[g$edges[,1],2]
   yend <- g$demes[g$edges[,2],2]
   grid <- data.frame(xstart, xend, ystart, yend)
-  geom_segment(aes(x=xstart, y=ystart, xend=xend, yend=yend), data=grid, color=color, alpha=0.3)
-  #geom_segment(aes(x=xstart, y=ystart, xend=xend, yend=yend), data=grid, color=color, alpha=1)
+  #geom_segment(aes(x=xstart, y=ystart, xend=xend, yend=yend), data=grid, color=color, alpha=0.3)
+  geom_segment(aes(x=xstart, y=ystart, xend=xend, yend=yend), data=grid, color=color, alpha=1)
 }
 
 compute_summary_statistic <- function(params, dimns){
@@ -131,12 +128,11 @@ compute_summary_statistic <- function(params, dimns){
   if (params$plot.median | params$plot.sign){
     med.rate  <- apply(rslts, c(2,3), median)
   }
-
+  
   if (params$plot.sign) {
     # measure of credibility of a barrier
-    #base.rate <- mean(med.rate)
-    #upper.ci  <- apply(rslts, c(2,3), function(x){ mean(x > base.rate)})
-    upper.ci  <- apply(rslts, c(2,3), function(x){ mean(x > 0)})
+    base.rate <- mean(med.rate)
+    upper.ci  <- apply(rslts, c(2,3), function(x){ mean(x > base.rate)})
   }
   
   return(list(avg=mean.rate, med = med.rate, upper.ci=upper.ci))
@@ -195,17 +191,21 @@ add_contours <- function(params,dimns, g) {
   return(add_contour(params, dimns, summary_stats, g))
 }
 
-add_pts <- function(g, color="#efefefdd", const_size=F){
+add_pts <- function(g, const_size=F){
   tbl <- table(g$ipmap)
   ind <- as.numeric(names(tbl))
   sizes <- as.vector(tbl)
-  df <- data.frame(x=g$demes[ind,1], y=g$demes[ind,2], sizes=sizes)
-  if(const_size) {
-    pts <- geom_point(aes(x=x, y=y), data=df, color=color, size=1.5)
-    #pts <- geom_point(aes(x=x, y=y), data=df, color="red", size=5)
-  } else {
-    pts <- geom_point(aes(x=x, y=y, size=sizes), data=df, color=color, show.legend=FALSE)
-  }
+  coords <- read.table('/Users/halasadi/eems2/data/Ralph+Coop/runs/overall/r1/popres_1_Inf/popres_1_Inf.coord')
+  coords <- unique(coords)
+  df <- data.frame(x = coords[,2], y = coords[,1])
+  pts <- geom_point(aes(x=x, y=y), data=df, color = "red", size = 3)
+  #df <- data.frame(x=g$demes[ind,1], y=g$demes[ind,2], sizes=sizes)
+  #if(const_size) {
+  #  pts <- geom_point(aes(x=x, y=y), data=df, color="black", size=1.5)
+  #} else {
+  #  pts <- geom_point(aes(x=x, y=y, size=sizes), data=df, fill = "red", colour = "black",
+  #                    pch = 21, show.legend=FALSE)
+  #}
 }
 
 #' plot_voronoi_samples
@@ -232,7 +232,8 @@ plot_voronoi_samples <- function(longlat, mcmcpath, outpath, is.mrates=TRUE,
   
   
   params <- list(mcmcpath = mcmcpath, outpath = outpath, longlat = longlat,
-                 is.mrates = is.mrates, add.countries = add.countries)
+                 is.mrates = is.mrates, add.countries = add.countries,
+                 plot.difference=FALSE)
   
   dimns <- read_dimns(params$mcmcpath[1], params$longlat)
   x <- dimns$marks[,1]
@@ -252,7 +253,7 @@ plot_voronoi_samples <- function(longlat, mcmcpath, outpath, is.mrates=TRUE,
             axis.text.y=element_blank(), axis.text.x=element_blank(),
             axis.title.x=element_blank(), axis.title.y=element_blank()) +
       geom_raster(data=df, aes(x=x, y=y, fill=rate), alpha = 1) + eems.colors +
-      add_graph(graph) + add_pts(graph, col = "black")
+      add_graph(graph) #+ add_pts(graph)
     if (params$add.countries){
       g <- add_map(dimns, params, g)
     }
@@ -319,19 +320,19 @@ get_title <- function(params){
 
 
 get_limits <- function(df, params){
-  
+  print(summary(df$ss))
   if (!params$plot.difference){
     mu <- mean(log10(df$ss))
-    a <- 10^(mu - 1)
-    b <- 10^(mu + 1)
+    a <- 10^(mu - 2)
+    b <- 10^(mu + 2)
     limits <- c(min(c(df$ss, a)),
                 max(c(df$ss, b)))
   }
   
   if (params$plot.difference){
     mu <- 0
-    a <- mu - 1
-    b <- mu + 1
+    a <- mu - 2
+    b <- mu + 2
     limits <- c(min(c(df$ss, a)),
                max(c(df$ss, b)))
   }
@@ -349,9 +350,15 @@ get_trans <- function(params){
 get_color_gradient <- function(params, legend.title, limits, trans){
 
   if (params$set.range){
-    color.gradient <- scale_fill_gradientn(colours=inferno_colors(),
+    if (params$is.mrates){
+      my.limits <- params$m.limits
+    } else{
+      my.limits <- params$N.limits
+    }
+    color.gradient <- scale_fill_gradientn(colours=default_eems_colors(),
                                         name=legend.title, 
-                                        trans = trans, na.value = "lightgray") 
+                                       trans = "identity", na.value = "lightgray",
+                                       limits = my.limits) 
   } else{
     color.gradient <- scale_fill_gradientn(colours=default_eems_colors(),
                                         name=legend.title, limits = limits, 
@@ -378,12 +385,14 @@ add_contour <- function(params, dimns, summary_stats, g){
   trans          <- get_trans(params)
   limits         <- get_limits(df, params)
   color.gradient <- get_color_gradient(params, legend.title, limits, trans)
-
+  
   if (params$plot.sign){
     ci  <- data.frame(x=x, y=y, ss=c(summary_stats$upper.ci), filter = dimns$filter)
     ci  <- ci[ci$filter,]
     df$ss[ci$ss > params$alpha  & ci$ss < (1-params$alpha)] <- NA
   }
+  
+  
   
   g <- g + geom_raster(data=df, aes(x=x, y=y, fill=ss), alpha = 1) + 
     color.gradient + theme(legend.key.width=unit(0.75, 'cm')) + 
@@ -398,7 +407,7 @@ add_contour <- function(params, dimns, summary_stats, g){
   }
   
   if (params$add.pts){
-    g <- g + add_pts(graph, col = "black")
+    g <- g + add_pts(graph)
   }
   return(g)
 }
@@ -458,8 +467,6 @@ add_map <- function(dimns, params, g){
             bottom=min(boundary[,2]), top=max(boundary[,2]))
   bbox['top'] <- pmin(bbox['top'], 83)
   m_boundary <- get_boundary_map(bbox)
-  #g = g + geom_path(data=m_boundary, aes(x=long, y=lat, group=group),  color='black', size=0.5, 
-  #                  alpha = 1)
   g = g + geom_path(data=m_boundary, aes(x=long, y=lat, group=group),  color='black', size=1, 
                     alpha = 1)
   return(g)
@@ -479,7 +486,6 @@ plot_contour <- function(params){
     g <- add_map(dimns, params, g)
   }
 
-  
   filename <- params$outpath
   if (params$is.mrates){
     filename <- paste0(filename, "/mrates-")
@@ -517,14 +523,16 @@ plot_contour <- function(params){
 #' @param height height of the main MAPS plot
 #' @param plot.difference set TRUE if user ran MAPS with the olderpath parameter set, this way
 #'                        MAPS only estimates the difference (boolean)
-#' @param set.range TRUE if minimum variability is set as +- 1 (in log10 scale) from the mean (boolean)
+#' @param set.range TRUE if range is set as custom
+#' @param m.limits limits of the migration surface plot (used if set.range==TRUE)
+#' @param N.limits limits of the population-size surface plot (used if set.range==TRUE)
 #' @param alpha the significance level, such that rates exceeding that level will be shown in the sign plot
 #' @export
 #' 
 plot_maps <- function(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
                      plot.mean = TRUE, longlat, mcmcpath, outpath,
                      width = 10, height = 6, plot.difference=FALSE, set.range = FALSE,
-                     alpha = 0.05){
+                     alpha = 0.1, m.limits = NA, N.limits = NA){
   
   dir.create(file.path(outpath), showWarnings = FALSE)
   
@@ -545,16 +553,17 @@ plot_maps <- function(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
                  is.mrates = TRUE, plot.mean = plot.mean, plot.median = plot.median,
                  plot.sign = FALSE, width = width, height = height, 
                  add.countries = add.countries, add.graph = add.graph, add.pts = add.pts, 
-                 plot.difference = plot.difference, set.range = set.range, alpha = alpha)
+                 plot.difference = plot.difference, set.range = set.range, alpha = alpha,
+                 m.limits = m.limits, N.limits = N.limits)
   
+  
+  if (params$set.range) {
+    if (length(params$m.limits) < 2 | length(params$N.limits) < 2){
+      stop("set.range = TRUE but m.limits or N.limits not specified")
+    }
+  }
   
   message('plotting migration surface')
-  plot_contour(params)
-  
-
-  message('plotting migration surface sign plot')
-  params$is.mrates = TRUE
-  params$plot.sign = TRUE
   plot_contour(params)
   
   message('plotting population-size surface')
@@ -562,10 +571,18 @@ plot_maps <- function(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
   params$plot.sign = FALSE
   plot_contour(params)
   
-  message('plotting population-size surface sign plot')
-  params$is.mrates = FALSE
-  params$plot.sign = TRUE
-  plot_contour(params)
+  if (!params$plot.difference){
+    
+    message('plotting migration surface sign plot')
+    params$is.mrates = TRUE
+    params$plot.sign = TRUE
+    plot_contour(params)
+
+    message('plotting population-size surface sign plot')
+    params$is.mrates = FALSE
+    params$plot.sign = TRUE
+    plot_contour(params)
+  }
   
   message('plotting diagonostics of model fit and MCMC convergence')
   plot_trace(mcmcpath, outpath) 

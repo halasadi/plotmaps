@@ -277,7 +277,9 @@ compute_scaling <- function(mcmcpath){
   odemes = nrow(read.table(paste0(mcmcpath, "/rdistoDemes.txt")))
   ndemes = nrow(demes)
   
+  # one degree \approx  110.57 km
   dx = min(dist(demes)) * 110.57
+  # scaling factor in units of km^2
   m.scalingfactor = (dx)^2
   
   total.area = Polygon(read.table(paste0(mcmcpath, "/outer.txt")))@area * (110.57)^2
