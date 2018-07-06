@@ -7,7 +7,7 @@
 plot_maps(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
   plot.mean = TRUE, longlat, mcmcpath, outpath, width = 10, height = 6,
   plot.difference = FALSE, set.range = FALSE, alpha = 0.1,
-  m.limits = NA, N.limits = NA)
+  m.limits = NA, N.limits = NA, trans = NA)
 }
 \arguments{
 \item{add.pts}{mark demes that are sampled (boolean)}

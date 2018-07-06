@@ -67,9 +67,10 @@ read_voronoi <- function(params, path) {
     xseed <- scan(paste(path,'/mcmcxcoord.txt',sep=''),what=numeric(),quiet=TRUE)
     yseed <- scan(paste(path,'/mcmcycoord.txt',sep=''),what=numeric(),quiet=TRUE)
     
-    if (params$plot.difference){
-      rates <- log10(rates)
-    }
+    # old verion of runs
+    #if (params$plot.difference){
+    #  rates <- log10(rates)
+    #}
     
   } else {
     rates <- scan(paste(path,'/mcmcqrates.txt',sep=''),what=numeric(),quiet=TRUE)
@@ -77,11 +78,14 @@ read_voronoi <- function(params, path) {
     xseed <- scan(paste(path,'/mcmcwcoord.txt',sep=''),what=numeric(),quiet=TRUE)
     yseed <- scan(paste(path,'/mcmczcoord.txt',sep=''),what=numeric(),quiet=TRUE)
     
+    #if (params$plot.difference){
+    #  rates <- -log10(rates)
+    #} else{
+    #  rates <- 1 / (2 * rates)
+    #}
     if (params$plot.difference){
-      rates <- -log10(rates)
-    } else{
-      rates <- 1 / (2 * rates)
-    }
+      rates <- -rates
+    } 
 
   }
   if (!params$longlat) {
@@ -89,6 +93,7 @@ read_voronoi <- function(params, path) {
     xseed <- yseed
     yseed <- tempi
   }
+  
   return(list(rates=rates,tiles=tiles,xseed=xseed,yseed=yseed))
 }
 
@@ -107,14 +112,6 @@ compute_summary_statistic <- function(params, dimns){
   
   rslts <- compute_rates_each_pixel(params,dimns)
 
-  l <- compute_scaling(params$mcmcpath[1])
-  
-  if (params$is.mrates & params$add.countries & !params$plot.difference){
-    rslts <- sqrt(rslts * l$m.scalingfactor)
-  } else if (!params$is.mrates & params$add.countries & !params$plot.difference){
-    rslts <- rslts * l$N.scalingfactor
-  }
-  
   mean.rate = NA
   med.rate = NA
   upper.ci = NA
@@ -133,6 +130,33 @@ compute_summary_statistic <- function(params, dimns){
     # measure of credibility of a barrier
     base.rate <- mean(med.rate)
     upper.ci  <- apply(rslts, c(2,3), function(x){ mean(x > base.rate)})
+  }
+  
+  #if (params$is.mrates){
+  #  old_rates = mean.rate
+  #  save(old_rates, file = "1_5_old.rda")
+  #  load(file = "1_5_old.rda")
+  #  mean.rate = mean.rate - old_rates
+  #}
+  
+  if (!params$plot.difference){
+    mean.rate <- 10^mean.rate
+    med.rate  <- 10^med.rate
+    
+    if (!params$is.mrates){
+      mean.rate <- 1 / (2 * mean.rate)
+      med.rate <- 1 / (2 * med.rate)
+    }
+    
+  }
+  
+  l <- compute_scaling(params$mcmcpath[1])
+  if (params$is.mrates & params$add.countries & !params$plot.difference){
+    mean.rate <- sqrt(mean.rate * l$m.scalingfactor)
+    med.rate <- sqrt(med.rate * l$m.scalingfactor)
+  } else if (!params$is.mrates & params$add.countries & !params$plot.difference){
+    mean.rate <- mean.rate * l$N.scalingfactor
+    med.rate <-  med.rate * l$N.scalingfactor
   }
   
   return(list(avg=mean.rate, med = med.rate, upper.ci=upper.ci))
@@ -195,17 +219,19 @@ add_pts <- function(g, const_size=F){
   tbl <- table(g$ipmap)
   ind <- as.numeric(names(tbl))
   sizes <- as.vector(tbl)
-  coords <- read.table('/Users/halasadi/eems2/data/Ralph+Coop/runs/overall/r1/popres_1_Inf/popres_1_Inf.coord')
-  coords <- unique(coords)
-  df <- data.frame(x = coords[,2], y = coords[,1])
-  pts <- geom_point(aes(x=x, y=y), data=df, color = "red", size = 3)
-  #df <- data.frame(x=g$demes[ind,1], y=g$demes[ind,2], sizes=sizes)
-  #if(const_size) {
-  #  pts <- geom_point(aes(x=x, y=y), data=df, color="black", size=1.5)
-  #} else {
-  #  pts <- geom_point(aes(x=x, y=y, size=sizes), data=df, fill = "red", colour = "black",
-  #                    pch = 21, show.legend=FALSE)
-  #}
+  
+  #coords <- read.table('/Users/halasadi/eems2/data/Ralph+Coop/runs/overall/r1/popres_1_Inf/popres_1_Inf.coord')
+  #coords <- unique(coords)
+  #df <- data.frame(x = coords[,2], y = coords[,1])
+  #pts <- geom_point(aes(x=x, y=y), data=df, color = "red", size = 3)
+  
+  df <- data.frame(x=g$demes[ind,1], y=g$demes[ind,2], sizes=sizes)
+  if(const_size) {
+    pts <- geom_point(aes(x=x, y=y), data=df, color="red", fill = "black", size=1.5)
+  } else {
+    pts <- geom_point(aes(x=x, y=y, size=sizes), data=df, colour = "red",
+                      fill = "black", pch = 21, show.legend=FALSE)
+  }
 }
 
 #' plot_voronoi_samples
@@ -320,7 +346,6 @@ get_title <- function(params){
 
 
 get_limits <- function(df, params){
-  print(summary(df$ss))
   if (!params$plot.difference){
     mu <- mean(log10(df$ss))
     a <- 10^(mu - 2)
@@ -341,6 +366,12 @@ get_limits <- function(df, params){
 }
  
 get_trans <- function(params){
+  
+  if (!is.na(params$trans)){
+    trans = params$trans
+    return(trans)
+  }
+  
   if (params$plot.difference){
     return("identity")
   }
@@ -357,7 +388,7 @@ get_color_gradient <- function(params, legend.title, limits, trans){
     }
     color.gradient <- scale_fill_gradientn(colours=default_eems_colors(),
                                         name=legend.title, 
-                                       trans = "identity", na.value = "lightgray",
+                                       trans = trans, na.value = "lightgray",
                                        limits = my.limits) 
   } else{
     color.gradient <- scale_fill_gradientn(colours=default_eems_colors(),
@@ -377,9 +408,13 @@ add_contour <- function(params, dimns, summary_stats, g){
   } else{
     summary_stat <- summary_stats$med
   }
-
+  
+  
+  
   df <- data.frame(x=x, y=y, ss=c(summary_stat), filter = dimns$filter)
+  print(summary(df$ss))
   df <- df[df$filter,]
+  
   
   legend.title   <- get_title(params)
   trans          <- get_trans(params)
@@ -391,8 +426,6 @@ add_contour <- function(params, dimns, summary_stats, g){
     ci  <- ci[ci$filter,]
     df$ss[ci$ss > params$alpha  & ci$ss < (1-params$alpha)] <- NA
   }
-  
-  
   
   g <- g + geom_raster(data=df, aes(x=x, y=y, fill=ss), alpha = 1) + 
     color.gradient + theme(legend.key.width=unit(0.75, 'cm')) + 
@@ -506,7 +539,7 @@ plot_contour <- function(params){
       filename <- paste0(filename, "median.pdf")
     }
   }
-
+  
   ggsave(filename, width = params$width, height = params$height)
 }
 
@@ -532,7 +565,7 @@ plot_contour <- function(params){
 plot_maps <- function(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
                      plot.mean = TRUE, longlat, mcmcpath, outpath,
                      width = 10, height = 6, plot.difference=FALSE, set.range = FALSE,
-                     alpha = 0.1, m.limits = NA, N.limits = NA){
+                     alpha = 0.1, m.limits = NA, N.limits = NA, trans = NA){
   
   dir.create(file.path(outpath), showWarnings = FALSE)
   
@@ -554,8 +587,14 @@ plot_maps <- function(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
                  plot.sign = FALSE, width = width, height = height, 
                  add.countries = add.countries, add.graph = add.graph, add.pts = add.pts, 
                  plot.difference = plot.difference, set.range = set.range, alpha = alpha,
-                 m.limits = m.limits, N.limits = N.limits)
+                 m.limits = m.limits, N.limits = N.limits, trans = trans)
   
+  
+  if (!is.na(params$trans)){
+    if (!(params$trans %in% c("identity", "log10"))){
+      stop("trans incorrectly specified, trans = identity or log10")
+    }
+  }
   
   if (params$set.range) {
     if (length(params$m.limits) < 2 | length(params$N.limits) < 2){
