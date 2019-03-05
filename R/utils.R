@@ -254,7 +254,7 @@ plot_parameter_distribution <- function(mcmcpath, outpath) {
   omega_q <- as.data.frame(cbind(omega_q, itrs)) %>% gather(variable, value, -itrs)
   mu_m    <- as.data.frame(cbind(mu_m, itrs)) %>% gather(variable, value, -itrs)
   mu_q    <- as.data.frame(cbind(mu_q, itrs)) %>% gather(variable, value, -itrs)
-  logll   <- as.data.frame(cbind(logll, itrs)) %>% gather(variable, value, -itrs)
+  #logll_   <- as.data.frame(cbind(logll, itrs)) %>% gather(variable, value, -itrs)
   mtiles  <- as.data.frame(cbind(mtiles, itrs)) %>% gather(variable, value, -itrs)
   qtiles  <- as.data.frame(cbind(qtiles, itrs)) %>% gather(variable, value, -itrs)
   

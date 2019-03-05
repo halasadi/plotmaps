@@ -625,6 +625,6 @@ plot_maps <- function(add.pts = TRUE, add.graph = TRUE, add.countries = FALSE,
   
   message('plotting diagonostics of model fit and MCMC convergence')
   plot_trace(mcmcpath, outpath) 
-  plot_parameter_distribution(mcmcpath, outpath)
+  #plot_parameter_distribution(mcmcpath, outpath)
   plot_fit_data(mcmcpath, outpath, params$longlat)
 }
